@@ -51,8 +51,29 @@ workflows:
     triggers:
       push:
       - branch: main
+        changed_files:
+          include:
+          - src/**
+          - public/**
+          - index.html
+          - package.json
+          - package-lock.json
+          - vite.config.js
+          exclude:
+          - README.md
+          - bitrise.yml
+          - "*.md"
+          - .gitignore
       pull_request:
       - source_branch: "*"
+        changed_files:
+          include:
+          - src/**
+          - public/**
+          - index.html
+          - package.json
+          - package-lock.json
+          - vite.config.js
     summary: deploy prototypes to GHpages
 meta:
   bitrise.io:
