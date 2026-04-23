@@ -73,7 +73,10 @@ export function WfeModularYaml() {
   return (
     <ProtoFrame title="WFE — modular yaml" note="v1 — layout & basic elements">
       <Flex direction="column" h="calc(100vh - 41px)">
-        {/* ── Top bar ── */}
+        {/* ── Global header ── */}
+        <GlobalHeader />
+
+        {/* ── Breadcrumb + actions ── */}
         <TopBar />
 
         {/* ── File tabs bar ── */}
@@ -112,7 +115,49 @@ export function WfeModularYaml() {
   )
 }
 
-/* ── Top bar ── */
+/* ── Global header (dark bar) ── */
+
+function GlobalHeader() {
+  return (
+    <Flex
+      px={4}
+      py={2}
+      align="center"
+      justify="space-between"
+      bg="fg"
+      color="bg"
+      flexShrink={0}
+    >
+      {/* Left: logo */}
+      <HStack gap={3}>
+        <Text fontWeight="bold" fontSize="sm">
+          ⬡ bitrise
+        </Text>
+      </HStack>
+
+      {/* Right: global actions */}
+      <HStack gap={4}>
+        <Text fontSize="xs" borderWidth="1px" borderColor="fg.muted" px={2} py={1}>
+          ✦ Ask AI
+        </Text>
+        <Text fontSize="xs">⌕</Text>
+        <Text fontSize="xs">⊞</Text>
+        <Text fontSize="xs">?</Text>
+        <Text fontSize="xs">🔔</Text>
+        <Box
+          w="22px"
+          h="22px"
+          borderRadius="999px"
+          bg="bg.muted"
+          borderWidth="1px"
+          borderColor="fg.muted"
+        />
+      </HStack>
+    </Flex>
+  )
+}
+
+/* ── Breadcrumb + action bar ── */
 
 function TopBar() {
   return (
@@ -123,28 +168,22 @@ function TopBar() {
       borderColor="border"
       align="center"
       justify="space-between"
-      bg="bg.subtle"
+      bg="bg"
       flexShrink={0}
     >
-      {/* Left: logo + breadcrumb */}
-      <HStack gap={3}>
-        <Text fontWeight="bold" fontSize="sm">
-          bitrise
-        </Text>
-        <Text fontSize="xs" color="fg.muted">
-          /
-        </Text>
+      {/* Left: breadcrumb */}
+      <HStack gap={2}>
         <Text fontSize="xs" color="fg.muted" textDecoration="underline">
           Bitrise CI
         </Text>
         <Text fontSize="xs" color="fg.muted">
-          /
+          ›
         </Text>
         <Text fontSize="xs" color="fg.muted" textDecoration="underline">
-          Bobo car
+          proton
         </Text>
         <Text fontSize="xs" color="fg.muted">
-          /
+          ›
         </Text>
         <Text fontSize="xs" fontWeight="bold">
           Workflow Editor
