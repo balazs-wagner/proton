@@ -11,11 +11,11 @@ workflows:
     - nvm@1:
         inputs:
         - node_version: '18'
-    - npm@1:
+    - npm@3:
         title: Install dependencies
         inputs:
         - command: install
-    - npm@1:
+    - npm@3:
         title: Build
         inputs:
         - command: run build
