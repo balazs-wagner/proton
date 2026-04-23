@@ -33,7 +33,7 @@ workflows:
             git config user.email "ci@bitrise.io"
             git config user.name "Bitrise CI"
 
-            # Use HTTPS + token so we don't need SSH write access
+            # Use HTTPS + GitHub token for push access
             git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/balazs-wagner/proton.git"
 
             # Switch to gh-pages branch (clean slate)
