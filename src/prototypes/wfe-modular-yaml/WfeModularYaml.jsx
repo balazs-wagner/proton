@@ -5,6 +5,8 @@ import {
   Text,
   Heading,
   Button,
+  Input,
+  Textarea,
   Stack,
   HStack,
   Badge,
@@ -27,8 +29,14 @@ import {
   FolderOpen,
   FileCode,
   GitBranch,
+  ChevronUp,
+  GitPullRequest,
+  Tag,
+  ArrowUpFromLine,
+  Pencil,
 } from 'lucide-react'
 import { ProtoFrame, Frame, Placeholder, Annotate } from '../../framework'
+import { Select } from '../../components/Select'
 
 /* ── Data ── */
 
@@ -129,7 +137,10 @@ export function WfeModularYaml() {
   )
   const [activeConfigTab, setActiveConfigTab] = useState('Configuration')
   const [activePplTab, setActivePplTab] = useState('Properties')
-  const [pplRightPanelOpen, setPplRightPanelOpen] = useState(false)
+  const [activeWfDrawerTab, setActiveWfDrawerTab] = useState('Configuration')
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerMode, setDrawerMode] = useState('pipeline') // 'pipeline' | 'workflow' | 'add-workflows'
+  const [editingWorkflowId, setEditingWorkflowId] = useState(null)
 
   const workflow = WORKFLOWS[selectedWorkflow]
   const pipeline = PIPELINES[selectedPipeline]
@@ -156,7 +167,7 @@ export function WfeModularYaml() {
         />
 
         {/* ── Body: sidebar + center + right ── */}
-        <Flex flex="1" overflow="hidden">
+        <Flex flex="1" overflow="hidden" position="relative">
           {/* Left sidebar */}
           <Sidebar
             items={SIDEBAR_NAV}
@@ -171,7 +182,21 @@ export function WfeModularYaml() {
             <PipelinePanel
               pipeline={pipeline}
               pipelineName={selectedPipeline}
-              onEditWorkflow={() => setPplRightPanelOpen(true)}
+              onEditWorkflow={(workflowId) => {
+                setEditingWorkflowId(workflowId)
+                setDrawerMode('workflow')
+                setActiveWfDrawerTab('Configuration')
+                setDrawerOpen(true)
+              }}
+              onOpenProperties={() => {
+                setDrawerMode('pipeline')
+                setActivePplTab('Properties')
+                setDrawerOpen(true)
+              }}
+              onAddWorkflows={() => {
+                setDrawerMode('add-workflows')
+                setDrawerOpen(true)
+              }}
             />
           ) : showWorkflow ? (
             <WorkflowPanel
@@ -186,25 +211,32 @@ export function WfeModularYaml() {
             />
           )}
 
-          {/* Right panel */}
-          {showPipeline && pplRightPanelOpen ? (
+          {/* Drawer — only shown when explicitly opened */}
+          {showPipeline && drawerOpen && drawerMode === 'pipeline' && (
             <PipelineRightPanel
               pipelineName={selectedPipeline}
               activeTab={activePplTab}
               onTabChange={setActivePplTab}
-              onClose={() => setPplRightPanelOpen(false)}
+              onClose={() => setDrawerOpen(false)}
             />
-          ) : showWorkflow ? (
+          )}
+          {showPipeline && drawerOpen && drawerMode === 'workflow' && (
+            <WorkflowDrawer
+              workflowId={editingWorkflowId}
+              activeTab={activeWfDrawerTab}
+              onTabChange={setActiveWfDrawerTab}
+              onClose={() => setDrawerOpen(false)}
+            />
+          )}
+          {showPipeline && drawerOpen && drawerMode === 'add-workflows' && (
+            <AddWorkflowsDrawer onClose={() => setDrawerOpen(false)} />
+          )}
+          {showWorkflow && (
             <WorkflowRightPanel
               workflowName={selectedWorkflow}
               workflow={workflow}
               activeTab={activeConfigTab}
               onTabChange={setActiveConfigTab}
-            />
-          ) : (
-            <EmptyRightPanel
-              moduleTab={activeFileTab}
-              entityType={activeSidebarItem}
             />
           )}
         </Flex>
@@ -554,7 +586,7 @@ function WorkflowPanel({ workflows, selected, onSelect }) {
 
 /* ── Pipeline center panel (graph view) ── */
 
-function PipelinePanel({ pipeline, pipelineName, onEditWorkflow }) {
+function PipelinePanel({ pipeline, pipelineName, onEditWorkflow, onOpenProperties, onAddWorkflows }) {
   const stages = pipeline.stages
 
   return (
@@ -567,10 +599,62 @@ function PipelinePanel({ pipeline, pipelineName, onEditWorkflow }) {
       p={5}
       position="relative"
     >
-      {/* Pipeline name */}
-      <Text fontSize="xs" color="fg.muted" mb={4}>
-        {pipelineName}
-      </Text>
+      {/* Pipeline action bar */}
+      <Flex justify="center" mb={5}>
+        <HStack
+          gap={2}
+          borderWidth="1px"
+          borderColor="border"
+          bg="bg"
+          px={2}
+          py={1}
+        >
+          {/* Pipeline selector */}
+          <Flex
+            align="center"
+            gap={2}
+            px={3}
+            py={1}
+            borderWidth="1px"
+            borderColor="border"
+            cursor="pointer"
+            minW="200px"
+          >
+            <Text
+              fontSize="xs"
+              fontWeight="bold"
+              flex="1"
+              overflow="hidden"
+              textOverflow="ellipsis"
+              whiteSpace="nowrap"
+            >
+              {pipelineName}
+            </Text>
+            <ChevronDown size={14} />
+          </Flex>
+
+          {/* Properties */}
+          <Button variant="outline" size="xs" px={3} onClick={onOpenProperties}>
+            <HStack gap={1}>
+              <Settings size={12} />
+              <Text fontSize="xs">Properties</Text>
+            </HStack>
+          </Button>
+
+          {/* + Workflows */}
+          <Button variant="outline" size="xs" px={3} onClick={onAddWorkflows}>
+            <Text fontSize="xs">+ Workflows</Text>
+          </Button>
+
+          {/* Run */}
+          <Button variant="outline" size="xs" px={3} color="fg.muted">
+            <HStack gap={1}>
+              <Play size={12} />
+              <Text fontSize="xs">Run</Text>
+            </HStack>
+          </Button>
+        </HStack>
+      </Flex>
 
       {/* Graph area */}
       <Flex align="flex-start" gap={0} position="relative">
@@ -625,7 +709,7 @@ function PipelinePanel({ pipeline, pipelineName, onEditWorkflow }) {
                     justify="center"
                     cursor="pointer"
                     _hover={{ bg: 'bg.muted' }}
-                    onClick={onEditWorkflow}
+                    onClick={() => onEditWorkflow(stage.id)}
                     title="Edit workflow"
                   >
                     <Settings size={13} />
@@ -779,39 +863,36 @@ function WorkflowRightPanel({ workflowName, workflow, activeTab, onTabChange }) 
 
 function PipelineRightPanel({ pipelineName, activeTab, onTabChange, onClose }) {
   return (
-    <Box
-      w="380px"
-      flexShrink={0}
-      overflowY="auto"
-      p={5}
-      borderLeftWidth="1px"
-      borderColor="border"
-    >
+      <Box
+        position="absolute"
+        top="0"
+        right="0"
+        w="680px"
+        h="100%"
+        bg="bg"
+        borderLeftWidth="1px"
+        borderColor="border"
+        zIndex="1001"
+        overflowY="auto"
+        p={5}
+        boxShadow="-4px 0 20px rgba(0,0,0,0.08)"
+      >
       <Flex justify="space-between" align="center" mb={1}>
-        <HStack gap={3}>
-          <Heading size="sm">PPL-1</Heading>
+        <Heading size="sm" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+          {pipelineName}
+        </Heading>
         <Flex
-          w="24px"
-          h="24px"
-          align="center"
-          justify="center"
-          borderWidth="1px"
-          borderColor="border"
-          bg="bg.subtle"
-        >
-          <Check size={14} />
-        </Flex>
-        </HStack>
-        <Flex
-          w="24px"
-          h="24px"
+          w="28px"
+          h="28px"
           align="center"
           justify="center"
           cursor="pointer"
-          _hover={{ bg: 'bg.subtle' }}
+          borderWidth="1px"
+          borderColor="border"
+          _hover={{ bg: 'bg.muted' }}
           onClick={onClose}
         >
-          <X size={14} />
+          <X size={16} />
         </Flex>
       </Flex>
 
@@ -836,18 +917,680 @@ function PipelineRightPanel({ pipelineName, activeTab, onTabChange, onClose }) {
       </HStack>
 
       {activeTab === 'Properties' && (
-        <Box>
-          <Text fontSize="xs" color="fg.muted">
-            All properties belong to the PPL definition and are editable in this
-            view.
-          </Text>
-          <Placeholder label="Pipeline properties" h="200px" mt={4} />
-        </Box>
+        <PipelineProperties pipelineName={pipelineName} />
       )}
 
       {activeTab === 'Triggers' && (
-        <Placeholder label="Pipeline triggers" h="200px" />
+        <PipelineTriggers />
       )}
+    </Box>
+  )
+}
+
+/* ── Workflow Drawer (from pipeline graph) ── */
+
+const WF_DRAWER_TABS = ['Configuration', 'Properties']
+
+function WorkflowDrawer({ workflowId, activeTab, onTabChange, onClose }) {
+  return (
+    <Box
+      position="absolute"
+      top="0"
+      right="0"
+      w="680px"
+      h="100%"
+      bg="bg"
+      borderLeftWidth="1px"
+      borderColor="border"
+      zIndex="1001"
+      overflowY="auto"
+      p={5}
+      boxShadow="-4px 0 20px rgba(0,0,0,0.08)"
+    >
+      <Flex justify="space-between" align="center" mb={4}>
+        <Heading size="sm" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+          {workflowId}
+        </Heading>
+        <Flex
+          w="28px"
+          h="28px"
+          align="center"
+          justify="center"
+          cursor="pointer"
+          borderWidth="1px"
+          borderColor="border"
+          _hover={{ bg: 'bg.muted' }}
+          onClick={onClose}
+        >
+          <X size={16} />
+        </Flex>
+      </Flex>
+
+      <HStack gap={0} borderBottomWidth="1px" borderColor="border" mb={5}>
+        {WF_DRAWER_TABS.map((tab) => (
+          <Button
+            key={tab}
+            variant="ghost"
+            size="xs"
+            onClick={() => onTabChange(tab)}
+            borderBottomWidth="2px"
+            borderColor={activeTab === tab ? 'fg' : 'transparent'}
+            borderRadius="0"
+            fontWeight={activeTab === tab ? 'bold' : 'normal'}
+            color={activeTab === tab ? 'fg' : 'fg.muted'}
+            px={3}
+            py={2}
+          >
+            {tab}
+          </Button>
+        ))}
+      </HStack>
+
+      {activeTab === 'Configuration' && (
+        <WfDrawerConfiguration workflowId={workflowId} />
+      )}
+
+      {activeTab === 'Properties' && (
+        <WfDrawerProperties workflowId={workflowId} />
+      )}
+    </Box>
+  )
+}
+
+function WfDrawerConfiguration({ workflowId }) {
+  const [pplCondOpen, setPplCondOpen] = useState(true)
+  const [stackOpen, setStackOpen] = useState(true)
+  const [envOpen, setEnvOpen] = useState(true)
+  const [abortOnFailure, setAbortOnFailure] = useState(false)
+
+  return (
+    <Stack gap={4}>
+      {/* Pipeline Conditions */}
+      <Box borderWidth="1px" borderColor="border">
+        <Flex
+          px={4}
+          py={3}
+          justify="space-between"
+          align="center"
+          cursor="pointer"
+          onClick={() => setPplCondOpen(!pplCondOpen)}
+        >
+          <Box>
+            <Text fontSize="sm" fontWeight="bold">
+              Pipeline Conditions
+            </Text>
+            <Text fontSize="xs" color="fg.muted">
+              Running conditions related to {workflowId}
+            </Text>
+          </Box>
+          <Box
+            color="fg.muted"
+            transform={pplCondOpen ? 'rotate(180deg)' : 'rotate(0)'}
+            transition="transform 0.15s ease"
+          >
+            <ChevronDown size={14} />
+          </Box>
+        </Flex>
+        {pplCondOpen && (
+          <Box px={4} pb={4}>
+            <Separator mb={4} />
+
+            {/* Abort Pipeline on failure */}
+            <Flex justify="space-between" align="flex-start" mb={4}>
+              <Box>
+                <Text fontSize="sm" fontWeight="bold">
+                  Abort Pipeline on failure
+                </Text>
+                <Text fontSize="xs" color="fg.muted">
+                  Running Workflows will shut down, future ones won't start if
+                  this one fails.
+                </Text>
+              </Box>
+              <Box
+                w="36px"
+                h="20px"
+                borderRadius="999px"
+                bg={abortOnFailure ? 'fg' : 'bg.muted'}
+                cursor="pointer"
+                position="relative"
+                flexShrink={0}
+                ml={4}
+                onClick={() => setAbortOnFailure(!abortOnFailure)}
+              >
+                <Box
+                  w="16px"
+                  h="16px"
+                  borderRadius="999px"
+                  bg="bg"
+                  position="absolute"
+                  top="2px"
+                  left={abortOnFailure ? '18px' : '2px'}
+                  transition="left 0.15s ease"
+                />
+              </Box>
+            </Flex>
+
+            <Separator mb={4} />
+
+            {/* Always run */}
+            <Box mb={4}>
+              <Text fontSize="sm" fontWeight="bold" mb={1}>
+                Always run
+              </Text>
+              <Select value="off" onChange={() => {}} options={[{value: 'off', label: 'Off'}, {value: 'on', label: 'On'}]} />
+              <Text fontSize="xs" color="fg.muted" mt={1}>
+                This Workflow or its dependent Workflows won't start if previous
+                Workflows failed.
+              </Text>
+            </Box>
+
+            <Separator mb={4} />
+
+            {/* Additional running conditions */}
+            <Box mb={4}>
+              <Text fontSize="sm" fontWeight="bold" mb={1}>
+                Additional running conditions{' '}
+                <Text as="span" color="fg.muted" fontWeight="normal">
+                  (optional)
+                </Text>
+              </Text>
+              <Textarea placeholder="Enter any valid Go template" rows={3} size="sm" />
+              <Text fontSize="xs" color="fg.muted" mt={1}>
+                Enter any valid Go template. The workflow will only be executed
+                if this template evaluates to true. You can use our `getenv` and
+                `enveq` functions for interacting with env vars.
+              </Text>
+            </Box>
+
+            <Separator mb={4} />
+
+            {/* Parallel copies */}
+            <Box>
+              <Text fontSize="sm" fontWeight="bold" mb={1}>
+                Parallel copies{' '}
+                <Text as="span" color="fg.muted" fontWeight="normal">
+                  (optional)
+                </Text>
+              </Text>
+              <Input placeholder="" size="sm" />
+              <Text fontSize="xs" color="fg.muted" mt={1}>
+                The number of copies of this Workflow that will be executed in
+                parallel at runtime. Value can be a number, or an Env Var.
+              </Text>
+              <Text fontSize="xs" color="fg.muted" mt={1} textDecoration="underline" cursor="pointer">
+                Show more
+              </Text>
+            </Box>
+          </Box>
+        )}
+      </Box>
+
+      {/* Stack & Machine */}
+      <Box borderWidth="1px" borderColor="border">
+        <Flex
+          px={4}
+          py={3}
+          justify="space-between"
+          align="center"
+          cursor="pointer"
+          onClick={() => setStackOpen(!stackOpen)}
+        >
+          <Box>
+            <Text fontSize="sm" fontWeight="bold">
+              Stack & Machine
+            </Text>
+            <Text fontSize="xs" color="fg.muted">
+              Ubuntu 22.04 for Android & Docker • Large
+            </Text>
+          </Box>
+          <HStack gap={2}>
+            <Badge
+              variant="outline"
+              fontSize="xs"
+              px={2}
+              borderColor="border"
+              color="fg.muted"
+            >
+              DEFAULT
+            </Badge>
+            <Box
+              color="fg.muted"
+              transform={stackOpen ? 'rotate(180deg)' : 'rotate(0)'}
+              transition="transform 0.15s ease"
+            >
+              <ChevronDown size={14} />
+            </Box>
+          </HStack>
+        </Flex>
+        {stackOpen && (
+          <Box px={4} pb={4}>
+            <Separator mb={4} />
+
+            {/* Stack */}
+            <Box mb={4}>
+              <Text fontSize="sm" fontWeight="bold" mb={1}>
+                Stack
+              </Text>
+              <Select value="default-ubuntu-22" onChange={() => {}} options={[{value: 'default-ubuntu-22', label: 'Default - Ubuntu 22.04 for Android & Docker'}]} />
+              <Text fontSize="xs" color="fg.muted" mt={1}>
+                Docker container environment based on Ubuntu 22.04. Preinstalled
+                Android SDK and other common tools.
+              </Text>
+              <Text fontSize="xs" color="fg.muted" mt={1}>
+                <Text as="span" textDecoration="underline" cursor="pointer">
+                  Pre-installed tools
+                </Text>
+                {' • '}
+                <Text as="span" textDecoration="underline" cursor="pointer">
+                  Stack Update Policy
+                </Text>
+              </Text>
+              <HStack gap={2} mt={3}>
+                <Box
+                  w="16px"
+                  h="16px"
+                  borderWidth="1px"
+                  borderColor="border"
+                />
+                <Text fontSize="xs" color="fg.muted">
+                  Use previous stack version ⓘ
+                </Text>
+              </HStack>
+            </Box>
+
+            <Separator mb={4} />
+
+            {/* Machine type */}
+            <Box>
+              <Text fontSize="sm" fontWeight="bold" mb={1}>
+                Machine type ⓘ
+              </Text>
+              <Select value="default-large" onChange={() => {}} options={[{value: 'default-large', label: 'Default - Large'}]} />
+              <Text fontSize="xs" color="fg.muted" mt={1}>
+                Machine types may vary depending on high demand.
+              </Text>
+              <Text fontSize="xs" color="fg.muted" mt={1}>
+                EU: AMD Zen5 Large 8 CPU 32 GB RAM
+              </Text>
+              <Text fontSize="xs" color="fg.muted">
+                US: AMD Zen4 Large 8 CPU 32 GB RAM
+              </Text>
+            </Box>
+          </Box>
+        )}
+      </Box>
+
+      {/* Env Vars */}
+      <Box borderWidth="1px" borderColor="border">
+        <Flex
+          px={4}
+          py={3}
+          justify="space-between"
+          align="center"
+          cursor="pointer"
+          onClick={() => setEnvOpen(!envOpen)}
+        >
+          <Text fontSize="sm" fontWeight="bold">
+            Env Vars
+          </Text>
+          <Box
+            color="fg.muted"
+            transform={envOpen ? 'rotate(180deg)' : 'rotate(0)'}
+            transition="transform 0.15s ease"
+          >
+            <ChevronDown size={14} />
+          </Box>
+        </Flex>
+        {envOpen && (
+          <Box px={4} pb={3}>
+            <Text fontSize="xs" color="fg.muted" cursor="pointer">
+              + Add new
+            </Text>
+          </Box>
+        )}
+      </Box>
+    </Stack>
+  )
+}
+
+function WfDrawerProperties({ workflowId }) {
+  return (
+    <Stack gap={5}>
+      {/* Name */}
+      <Box>
+        <Text fontSize="xs" fontWeight="bold" mb={1}>
+          Name
+        </Text>
+        <Input defaultValue={workflowId} size="sm" />
+      </Box>
+
+      {/* Summary */}
+      <Box>
+        <Text fontSize="xs" fontWeight="bold" mb={1}>
+          Summary{' '}
+          <Text as="span" color="fg.muted" fontWeight="normal">
+            (optional)
+          </Text>
+        </Text>
+        <Textarea placeholder="" rows={3} size="sm" />
+      </Box>
+
+      {/* Description */}
+      <Box>
+        <Text fontSize="xs" fontWeight="bold" mb={1}>
+          Description{' '}
+          <Text as="span" color="fg.muted" fontWeight="normal">
+            (optional)
+          </Text>
+        </Text>
+        <Textarea placeholder="" rows={4} size="sm" />
+      </Box>
+    </Stack>
+  )
+}
+
+/* ── Pipeline Properties tab ── */
+
+function PipelineProperties({ pipelineName }) {
+  return (
+    <Stack gap={5}>
+      {/* Name */}
+      <Box>
+        <Text fontSize="xs" fontWeight="bold" mb={1}>
+          Name
+        </Text>
+        <Input defaultValue={pipelineName} size="sm" />
+      </Box>
+
+      {/* Summary */}
+      <Box>
+        <Text fontSize="xs" fontWeight="bold" mb={1}>
+          Summary{' '}
+          <Text as="span" color="fg.muted" fontWeight="normal">
+            (optional)
+          </Text>
+        </Text>
+        <Textarea placeholder="" rows={3} size="sm" />
+      </Box>
+
+      {/* Description */}
+      <Box>
+        <Text fontSize="xs" fontWeight="bold" mb={1}>
+          Description{' '}
+          <Text as="span" color="fg.muted" fontWeight="normal">
+            (optional)
+          </Text>
+        </Text>
+        <Textarea placeholder="" rows={4} size="sm" />
+      </Box>
+
+      {/* Priority */}
+      <Box>
+        <Text fontSize="xs" fontWeight="bold" mb={1}>
+          Priority{' '}
+          <Text as="span" color="fg.muted" fontWeight="normal">
+            (optional)
+          </Text>
+        </Text>
+        <Input placeholder="" size="sm" />
+        <Text fontSize="xs" color="fg.muted" mt={1}>
+          Set priority between -100 and +100. Default value is 0.
+        </Text>
+      </Box>
+
+      {/* Git status name */}
+      <Box>
+        <Flex justify="space-between" mb={1}>
+          <Text fontSize="xs" fontWeight="bold">
+            Git status name{' '}
+            <Text as="span" color="fg.muted" fontWeight="normal">
+              (optional)
+            </Text>
+          </Text>
+          <Text fontSize="xs" color="fg.muted">
+            0/100
+          </Text>
+        </Flex>
+        <Input defaultValue="ci/bitrise/<project_slug>/<event_type>" size="sm" />
+        <Text fontSize="xs" color="fg.muted" mt={1}>
+          Allowed characters: A-Za-z.,():/–_0-9 []&lt;&gt;
+        </Text>
+        <Text fontSize="xs" color="fg.muted" mt={1}>
+          You can use the following variables in your string:
+        </Text>
+        <HStack gap={2} mt={2} flexWrap="wrap">
+          {['<project_slug>', '<project_title>', '<target_id>', '<event_type>'].map(
+            (v) => (
+              <Text
+                key={v}
+                fontSize="xs"
+                px={2}
+                py={1}
+                borderWidth="1px"
+                borderColor="border"
+                bg="bg.subtle"
+              >
+                {v}
+              </Text>
+            )
+          )}
+        </HStack>
+      </Box>
+
+      {/* Delete */}
+      <Separator />
+      <Button variant="outline" size="xs" px={3} w="fit-content">
+        <HStack gap={1}>
+          <Trash2 size={12} />
+          <Text fontSize="xs">Delete Pipeline</Text>
+        </HStack>
+      </Button>
+    </Stack>
+  )
+}
+
+/* ── Pipeline Triggers tab ── */
+
+function PipelineTriggers() {
+  const [triggersEnabled, setTriggersEnabled] = useState(true)
+
+  return (
+    <Stack gap={4}>
+      {/* Enable toggle */}
+      <Flex
+        borderWidth="1px"
+        borderColor="border"
+        px={4}
+        py={3}
+        justify="space-between"
+        align="center"
+      >
+        <Box>
+          <Text fontSize="sm" fontWeight="bold">
+            Enable triggers
+          </Text>
+          <Text fontSize="xs" color="fg.muted">
+            When disabled and saved, none of the triggers below will execute a
+            build.
+          </Text>
+        </Box>
+        <Box
+          w="36px"
+          h="20px"
+          borderRadius="999px"
+          bg={triggersEnabled ? 'fg' : 'bg.muted'}
+          cursor="pointer"
+          position="relative"
+          onClick={() => setTriggersEnabled(!triggersEnabled)}
+        >
+          <Box
+            w="16px"
+            h="16px"
+            borderRadius="999px"
+            bg="bg"
+            position="absolute"
+            top="2px"
+            left={triggersEnabled ? '18px' : '2px'}
+            transition="left 0.15s ease"
+          />
+        </Box>
+      </Flex>
+
+      {/* Trigger sections */}
+      <TriggerSection icon={<ArrowUpFromLine size={16} />} label="Push" />
+      <TriggerSection icon={<GitPullRequest size={16} />} label="Pull request" />
+      <TriggerSection icon={<Tag size={16} />} label="Tag" />
+    </Stack>
+  )
+}
+
+function TriggerSection({ icon, label }) {
+  const [open, setOpen] = useState(true)
+
+  return (
+    <Box borderWidth="1px" borderColor="border">
+      <Flex
+        px={4}
+        py={3}
+        justify="space-between"
+        align="center"
+        cursor="pointer"
+        onClick={() => setOpen(!open)}
+      >
+        <HStack gap={2}>
+          <Box color="fg.muted">{icon}</Box>
+          <Text fontSize="sm" fontWeight="bold">
+            {label}
+          </Text>
+        </HStack>
+        <Box
+          color="fg.muted"
+          transform={open ? 'rotate(0)' : 'rotate(180deg)'}
+          transition="transform 0.15s ease"
+        >
+          <ChevronUp size={14} />
+        </Box>
+      </Flex>
+      {open && (
+        <Box px={4} pb={3}>
+          <Text fontSize="xs" color="fg.muted" cursor="pointer">
+            + Add trigger
+          </Text>
+        </Box>
+      )}
+    </Box>
+  )
+}
+
+/* ── Add Workflows Drawer ── */
+
+const AVAILABLE_WORKFLOWS = [
+  {
+    name: 'test',
+    description: 'Not used by other Pipelines',
+    stack: 'Xcode 16.4',
+  },
+  {
+    name: 'test_without_building',
+    description: 'Not used by other Pipelines',
+    stack: 'Xcode 26.5 with edge updates',
+  },
+  {
+    name: 'deploy_to_staging',
+    description: 'Used by deploy_pipeline',
+    stack: 'Ubuntu 22.04',
+  },
+  {
+    name: 'run_ui_tests',
+    description: 'Not used by other Pipelines',
+    stack: 'Xcode 16.4',
+  },
+]
+
+function AddWorkflowsDrawer({ onClose }) {
+  const [filter, setFilter] = useState('')
+
+  const filtered = AVAILABLE_WORKFLOWS.filter((wf) =>
+    wf.name.toLowerCase().includes(filter.toLowerCase())
+  )
+
+  return (
+    <Box
+      position="absolute"
+      top="0"
+      right="0"
+      w="680px"
+      h="100%"
+      bg="bg"
+      borderLeftWidth="1px"
+      borderColor="border"
+      zIndex="1001"
+      overflowY="auto"
+      p={5}
+      boxShadow="-4px 0 20px rgba(0,0,0,0.08)"
+    >
+      <Flex justify="space-between" align="center" mb={5}>
+        <Heading size="sm">Add Workflows</Heading>
+        <Flex
+          w="28px"
+          h="28px"
+          align="center"
+          justify="center"
+          cursor="pointer"
+          borderWidth="1px"
+          borderColor="border"
+          _hover={{ bg: 'bg.muted' }}
+          onClick={onClose}
+        >
+          <X size={16} />
+        </Flex>
+      </Flex>
+
+      {/* Search */}
+      <HStack
+        gap={2}
+        borderWidth="1px"
+        borderColor="border"
+        px={3}
+        py={2}
+        mb={4}
+      >
+        <Search size={14} />
+        <Input
+          variant="unstyled"
+          placeholder="Filter by name"
+          size="sm"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+      </HStack>
+
+      {/* Workflow list */}
+      <Stack gap={2}>
+        {filtered.map((wf) => (
+          <Box
+            key={wf.name}
+            borderWidth="1px"
+            borderColor="border"
+            px={4}
+            py={3}
+            cursor="pointer"
+            _hover={{ bg: 'bg.subtle' }}
+          >
+            <Text fontSize="sm" fontWeight="bold">
+              {wf.name}
+            </Text>
+            <Text fontSize="xs" color="fg.muted">
+              {wf.description} • {wf.stack}
+            </Text>
+          </Box>
+        ))}
+        {filtered.length === 0 && (
+          <Text fontSize="xs" color="fg.muted" py={4} textAlign="center">
+            No workflows match your filter.
+          </Text>
+        )}
+      </Stack>
     </Box>
   )
 }
@@ -876,12 +1619,3 @@ function EmptyCanvas({ moduleTab, entityType }) {
   )
 }
 
-function EmptyRightPanel({ moduleTab, entityType }) {
-  return (
-    <Box w="380px" flexShrink={0} overflowY="auto" p={5}>
-      <Text fontSize="xs" color="fg.subtle">
-        Select a {entityType.toLowerCase().replace(/s$/, '')} to see its properties.
-      </Text>
-    </Box>
-  )
-}
