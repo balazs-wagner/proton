@@ -10,6 +10,24 @@ import {
   Badge,
   Separator,
 } from '@chakra-ui/react'
+import {
+  Link as LinkIcon,
+  Settings,
+  Trash2,
+  X,
+  Search,
+  HelpCircle,
+  Bell,
+  LayoutGrid,
+  Sparkles,
+  ChevronDown,
+  Play,
+  GripVertical,
+  Check,
+  FolderOpen,
+  FileCode,
+  GitBranch,
+} from 'lucide-react'
 import { ProtoFrame, Frame, Placeholder, Annotate } from '../../framework'
 
 /* ── Data ── */
@@ -111,18 +129,10 @@ export function WfeModularYaml() {
   )
   const [activeConfigTab, setActiveConfigTab] = useState('Configuration')
   const [activePplTab, setActivePplTab] = useState('Properties')
+  const [pplRightPanelOpen, setPplRightPanelOpen] = useState(false)
 
   const workflow = WORKFLOWS[selectedWorkflow]
   const pipeline = PIPELINES[selectedPipeline]
-
-  /**
-   * Determine what to show in the canvas.
-   * Only specific module + entity combos have real content,
-   * everything else gets a placeholder.
-   */
-  const hasContent =
-    (activeFileTab === 'pipelines.yml' && activeSidebarItem === 'Pipelines') ||
-    (activeFileTab === 'workflows.yml' && activeSidebarItem === 'Workflows')
 
   const showPipeline =
     activeFileTab === 'pipelines.yml' && activeSidebarItem === 'Pipelines'
@@ -158,7 +168,11 @@ export function WfeModularYaml() {
 
           {/* Center panel */}
           {showPipeline ? (
-            <PipelinePanel pipeline={pipeline} pipelineName={selectedPipeline} />
+            <PipelinePanel
+              pipeline={pipeline}
+              pipelineName={selectedPipeline}
+              onEditWorkflow={() => setPplRightPanelOpen(true)}
+            />
           ) : showWorkflow ? (
             <WorkflowPanel
               workflows={WORKFLOWS}
@@ -173,11 +187,12 @@ export function WfeModularYaml() {
           )}
 
           {/* Right panel */}
-          {showPipeline ? (
+          {showPipeline && pplRightPanelOpen ? (
             <PipelineRightPanel
               pipelineName={selectedPipeline}
               activeTab={activePplTab}
               onTabChange={setActivePplTab}
+              onClose={() => setPplRightPanelOpen(false)}
             />
           ) : showWorkflow ? (
             <WorkflowRightPanel
@@ -217,19 +232,21 @@ function GlobalHeader() {
         </Text>
       </HStack>
       <HStack gap={4}>
-        <Text
+        <HStack
+          gap={1}
           fontSize="xs"
           borderWidth="1px"
           borderColor="fg.muted"
           px={2}
           py={1}
         >
-          ✦ Ask AI
-        </Text>
-        <Text fontSize="xs">⌕</Text>
-        <Text fontSize="xs">⊞</Text>
-        <Text fontSize="xs">?</Text>
-        <Text fontSize="xs">🔔</Text>
+          <Sparkles size={12} />
+          <Text fontSize="xs">Ask AI</Text>
+        </HStack>
+        <Search size={16} />
+        <LayoutGrid size={16} />
+        <HelpCircle size={16} />
+        <Bell size={16} />
         <Box
           w="22px"
           h="22px"
@@ -469,13 +486,11 @@ function WorkflowPanel({ workflows, selected, onSelect }) {
                 [workflows.yml]
               </Text>
             </Text>
-            <Text fontSize="xs" color="fg.muted">
-              ▾
-            </Text>
+            <ChevronDown size={14} color="currentColor" />
           </Flex>
         </Box>
         <Button variant="outline" size="sm" px={3}>
-          ▶
+          <Play size={14} />
         </Button>
       </Flex>
 
@@ -502,9 +517,9 @@ function WorkflowPanel({ workflows, selected, onSelect }) {
               _hover={{ bg: 'bg.subtle' }}
               cursor="pointer"
             >
-              <Text fontSize="xs" color="fg.muted" userSelect="none">
-                ⠿
-              </Text>
+              <Box color="fg.muted" userSelect="none" flexShrink={0}>
+                <GripVertical size={14} />
+              </Box>
               <Flex
                 w="32px"
                 h="32px"
@@ -514,10 +529,9 @@ function WorkflowPanel({ workflows, selected, onSelect }) {
                 borderColor="border"
                 bg="bg.muted"
                 flexShrink={0}
+                color="fg.muted"
               >
-                <Text fontSize="xs" color="fg.muted">
-                  ☐
-                </Text>
+                <FileCode size={14} />
               </Flex>
               <Box>
                 <Text fontSize="sm">{step.name}</Text>
@@ -540,7 +554,7 @@ function WorkflowPanel({ workflows, selected, onSelect }) {
 
 /* ── Pipeline center panel (graph view) ── */
 
-function PipelinePanel({ pipeline, pipelineName }) {
+function PipelinePanel({ pipeline, pipelineName, onEditWorkflow }) {
   const stages = pipeline.stages
 
   return (
@@ -570,18 +584,65 @@ function PipelinePanel({ pipeline, pipelineName }) {
               minW="200px"
               maxW="220px"
             >
-              {/* Node header */}
-              <Box
+              {/* Node header with actions */}
+              <Flex
                 px={3}
                 py={2}
                 borderBottomWidth={stage.steps.length > 0 ? '1px' : '0'}
                 borderColor="border"
                 bg="bg.subtle"
+                justify="space-between"
+                align="center"
+                gap={2}
               >
-                <Text fontSize="xs" fontWeight="bold">
+                <Text
+                  fontSize="xs"
+                  fontWeight="bold"
+                  overflow="hidden"
+                  textOverflow="ellipsis"
+                  whiteSpace="nowrap"
+                  flex="1"
+                  minW="0"
+                >
                   {stage.id}
                 </Text>
-              </Box>
+                <HStack gap={0} flexShrink={0}>
+                  <Flex
+                    w="24px"
+                    h="24px"
+                    align="center"
+                    justify="center"
+                    cursor="pointer"
+                    _hover={{ bg: 'bg.muted' }}
+                    title="Chain workflows"
+                  >
+                    <LinkIcon size={13} />
+                  </Flex>
+                  <Flex
+                    w="24px"
+                    h="24px"
+                    align="center"
+                    justify="center"
+                    cursor="pointer"
+                    _hover={{ bg: 'bg.muted' }}
+                    onClick={onEditWorkflow}
+                    title="Edit workflow"
+                  >
+                    <Settings size={13} />
+                  </Flex>
+                  <Flex
+                    w="24px"
+                    h="24px"
+                    align="center"
+                    justify="center"
+                    cursor="pointer"
+                    _hover={{ bg: 'bg.muted' }}
+                    title="Delete workflow"
+                  >
+                    <Trash2 size={13} />
+                  </Flex>
+                </HStack>
+              </Flex>
 
               {/* Steps inside node */}
               {stage.steps.length > 0 && (
@@ -678,9 +739,9 @@ function WorkflowRightPanel({ workflowName, workflow, activeTab, onTabChange }) 
                 >
                   DEFAULT
                 </Badge>
-                <Text fontSize="xs" color="fg.muted">
-                  ▾
-                </Text>
+                <Box color="fg.muted">
+                  <ChevronDown size={14} />
+                </Box>
               </HStack>
             </Flex>
           </Box>
@@ -695,9 +756,9 @@ function WorkflowRightPanel({ workflowName, workflow, activeTab, onTabChange }) 
                   Env Vars exclusive to the Steps within this Workflow
                 </Text>
               </Box>
-              <Text fontSize="xs" color="fg.muted">
-                ▾
-              </Text>
+              <Box color="fg.muted">
+                <ChevronDown size={14} />
+              </Box>
             </Flex>
           </Box>
         </Stack>
@@ -716,11 +777,19 @@ function WorkflowRightPanel({ workflowName, workflow, activeTab, onTabChange }) 
 
 /* ── Pipeline right panel ── */
 
-function PipelineRightPanel({ pipelineName, activeTab, onTabChange }) {
+function PipelineRightPanel({ pipelineName, activeTab, onTabChange, onClose }) {
   return (
-    <Box w="380px" flexShrink={0} overflowY="auto" p={5}>
-      <HStack mb={1} gap={3}>
-        <Heading size="sm">PPL-1</Heading>
+    <Box
+      w="380px"
+      flexShrink={0}
+      overflowY="auto"
+      p={5}
+      borderLeftWidth="1px"
+      borderColor="border"
+    >
+      <Flex justify="space-between" align="center" mb={1}>
+        <HStack gap={3}>
+          <Heading size="sm">PPL-1</Heading>
         <Flex
           w="24px"
           h="24px"
@@ -730,9 +799,21 @@ function PipelineRightPanel({ pipelineName, activeTab, onTabChange }) {
           borderColor="border"
           bg="bg.subtle"
         >
-          <Text fontSize="xs">✓</Text>
+          <Check size={14} />
         </Flex>
-      </HStack>
+        </HStack>
+        <Flex
+          w="24px"
+          h="24px"
+          align="center"
+          justify="center"
+          cursor="pointer"
+          _hover={{ bg: 'bg.subtle' }}
+          onClick={onClose}
+        >
+          <X size={14} />
+        </Flex>
+      </Flex>
 
       <HStack gap={0} borderBottomWidth="1px" borderColor="border" mb={5} mt={4}>
         {PPL_TABS.map((tab) => (
