@@ -6,7 +6,10 @@ import { WfeModularYaml } from './wfe-modular-yaml/WfeModularYaml'
  * Register new prototypes here.
  * Each entry becomes a card on the index page and a route.
  *
- * { slug, title, description, component }
+ * { slug, title, description, component, theme? }
+ *
+ * theme is optional — defaults to 'wireframe'.
+ * Available themes: 'wireframe', 'relaxed'
  */
 export const prototypes = [
   {
@@ -20,11 +23,13 @@ export const prototypes = [
     title: 'App settings',
     description: 'Multi-section settings page with tabs, toggles, team management, and danger zone.',
     component: AppSettings,
+    theme: 'relaxed',
   },
   {
     slug: 'wfe-modular-yaml',
     title: 'WFE — modular yaml',
     description: 'Workflow Editor layout with sidebar, step list, and config panel.',
     component: WfeModularYaml,
+    theme: 'relaxed',
   },
 ]
