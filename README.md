@@ -1,10 +1,13 @@
 # Proton
 
-Low-fidelity prototyping setup for quickly sketching product ideas. Built on Chakra UI v3 + Vite + React. All prototypes live in one repo and auto-deploy to GitHub Pages.
+Low-fidelity prototyping setup for quickly sketching product ideas. Built on Chakra UI v3 + Vite + React. All prototypes live in one repo and auto-deploy to GitHub Pages via Bitrise.
+
+**Live:** https://balazs-wagner.github.io/proton/#/
 
 ## What's inside
 
 - **`src/framework/`** — the reusable bits: wireframe theme (grayscale, mono font, flat borders), a `ProtoFrame` shell, and low-fi primitives (`Placeholder`, `Frame`, `Annotate`)
+- **`src/components/`** — shared UI wrappers (`Switch`, `Select`) built on Chakra v3 compound components
 - **`src/prototypes/`** — one folder per prototype
 - **`src/prototypes/registry.js`** — the single place where prototypes are registered
 - **Index page** — lists every prototype, auto-generated from the registry
@@ -29,7 +32,7 @@ Open http://localhost:5173
 
    export function MyNewIdea() {
      return (
-       <ProtoFrame title="My new idea" note="v1 — first pass">
+       <ProtoFrame title="My new idea">
          <Stack p={8}>
            <Frame label="Main area">
              <Text>Your UI here</Text>
@@ -61,21 +64,26 @@ Done. It appears on the index and at `/#/my-new-idea`.
 
 ## Framework primitives
 
-- `<ProtoFrame title note>` — wraps every prototype with a consistent top bar
+- `<ProtoFrame title>` — wraps every prototype with a full-bleed canvas. A small home icon appears when hovering the bottom-left corner to navigate back to the index.
 - `<Frame label>` — bordered region with optional label, for grouping UI
 - `<Placeholder label>` — dashed grey box for "something goes here"
 - `<Annotate>` — italic margin note for design rationale (visible to reviewers)
 
 Anything from `@chakra-ui/react` is available — `Button`, `Input`, `Stack`, `Menu`, `Dialog`, `Tabs`, etc. The wireframe theme flattens them automatically.
 
-## Deploying to GitHub Pages
+## CI/CD with Bitrise
 
-1. Push this repo to GitHub as `proton` (or rename — see note below)
-2. In the repo settings → **Pages**, set source to **GitHub Actions**
-3. Push to `main` and the included workflow builds and deploys automatically
-4. Each prototype is shareable at `https://<your-username>.github.io/proton/#/<slug>`
+Deployment is managed by Bitrise. The `bitrise.yml` in the repo root defines a `deploy` workflow that:
 
-> **If your repo name is not `proton`**, update `base` in `vite.config.js` to match (e.g. `/my-repo-name/`).
+1. Clones the repo
+2. Installs Node 18 via nvm
+3. Runs `npm install`
+4. Runs `npm run build`
+5. Pushes the `dist/` output to the `gh-pages` branch
+
+The workflow triggers automatically on every push to `main`. GitHub Pages serves the `gh-pages` branch at the live URL above.
+
+> **Requires** a `GITHUB_TOKEN` secret in Bitrise with write access to the repo.
 
 ## Sharing individual prototypes
 
