@@ -3,11 +3,40 @@ format_version: '26'
 default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
 project_type: other
 workflows:
-  primary:
+  deploy:
     steps:
     - activate-ssh-key@4:
         run_if: '{{getenv "SSH_RSA_PRIVATE_KEY" | ne ""}}'
     - git-clone@8: {}
+    - script@1:
+        title: Deploy to GitHub Pages
+        inputs:
+        - content: |-
+            #!/usr/bin/env bash
+            set -e
+            set -o pipefail
+
+            git config user.email "ci@bitrise.io"
+            git config user.name "Bitrise CI"
+
+            git remote set-url origin git@github.com:balazs-wagner/proton.git
+
+            git add -f dist/
+            git stash
+
+            git fetch origin gh-pages || true
+            git checkout gh-pages 2>/dev/null || git checkout --orphan gh-pages
+
+            git rm -rf . --quiet || true
+
+            git stash pop || git checkout stash -- dist/
+
+            cp -r dist/. .
+            rm -rf dist/
+
+            git add -A
+            git commit -m "Deploy to GitHub Pages [skip ci]"
+            git push origin gh-pages
     - deploy-to-bitrise-io@2: {}
     triggers:
       push:
