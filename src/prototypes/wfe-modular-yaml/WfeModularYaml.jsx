@@ -5,7 +5,6 @@ import {
   Text,
   Heading,
   Button,
-  Input,
   Stack,
   HStack,
   Badge,
@@ -18,21 +17,37 @@ import { ProtoFrame, Frame, Placeholder, Annotate } from '../../framework'
 const SIDEBAR_NAV = [
   { label: 'Workflows', icon: '⎔' },
   { label: 'Pipelines', icon: '⏣' },
-  { label: 'Step bundles', icon: '☰' },
+  { label: 'Step Bundles', icon: '☰' },
   { label: 'Secrets', icon: '⊘' },
   { label: 'Env Vars', icon: '$' },
   { label: 'Triggers', icon: '⚡' },
   { label: 'Containers', icon: '▣' },
-  { label: 'Stacks & Machines', icon: '≡' },
+  { label: 'Stacks and Machines', icon: '≡' },
   { label: 'Licenses', icon: '⚿' },
 ]
 
 const FILE_TABS = [
+  'merged config',
   'bitrise.yml',
-  'workflows.yml',
-  'step_bundles.yml',
+  'testing.yml',
   'pipelines.yml',
-  'containers.yml',
+  'workflows.yml',
+  'build_app.yml',
+  'run_performance_test.yml',
+  'analyse_results.yml',
+  'step_bundles.yml',
+]
+
+const FILE_TREE = [
+  { name: 'bitrise.yml', depth: 0 },
+  { name: 'modules/', depth: 0, isFolder: true },
+  { name: 'testing.yml', depth: 1 },
+  { name: 'pipelines.yml', depth: 1 },
+  { name: 'workflows.yml', depth: 1 },
+  { name: 'build_app.yml', depth: 1 },
+  { name: 'run_performance_test.yml', depth: 1 },
+  { name: 'analyse_results.yml', depth: 1 },
+  { name: 'step_bundles.yml', depth: 1 },
 ]
 
 const WORKFLOWS = {
@@ -58,20 +73,64 @@ const WORKFLOWS = {
   },
 }
 
+const PIPELINES = {
+  'pipeline_stress_test_e2e_browserstack': {
+    stages: [
+      {
+        id: 'setup_and_build_android_app',
+        steps: [
+          { name: 'step 01' },
+          { name: 'step 02' },
+          { name: 'step_bundle 01', isBundle: true },
+          { name: 'step 03' },
+          { name: 'step 04' },
+          { name: 'step 05' },
+        ],
+        next: ['android_e2e_stress_test'],
+      },
+      {
+        id: 'android_e2e_stress_test',
+        steps: [],
+        next: [],
+      },
+    ],
+  },
+}
+
 const CONFIG_TABS = ['Configuration', 'Properties', 'Triggers']
+const PPL_TABS = ['Properties', 'Triggers']
 
 /* ── Main component ── */
 
 export function WfeModularYaml() {
-  const [activeSidebarItem, setActiveSidebarItem] = useState('Workflows')
-  const [activeFileTab, setActiveFileTab] = useState('workflows.yml')
+  const [activeSidebarItem, setActiveSidebarItem] = useState('Pipelines')
+  const [activeFileTab, setActiveFileTab] = useState('pipelines.yml')
   const [selectedWorkflow, setSelectedWorkflow] = useState('testing-workflow')
+  const [selectedPipeline, setSelectedPipeline] = useState(
+    'pipeline_stress_test_e2e_browserstack'
+  )
   const [activeConfigTab, setActiveConfigTab] = useState('Configuration')
+  const [activePplTab, setActivePplTab] = useState('Properties')
 
   const workflow = WORKFLOWS[selectedWorkflow]
+  const pipeline = PIPELINES[selectedPipeline]
+
+  /**
+   * Determine what to show in the canvas.
+   * Only specific module + entity combos have real content,
+   * everything else gets a placeholder.
+   */
+  const hasContent =
+    (activeFileTab === 'pipelines.yml' && activeSidebarItem === 'Pipelines') ||
+    (activeFileTab === 'workflows.yml' && activeSidebarItem === 'Workflows')
+
+  const showPipeline =
+    activeFileTab === 'pipelines.yml' && activeSidebarItem === 'Pipelines'
+  const showWorkflow =
+    activeFileTab === 'workflows.yml' && activeSidebarItem === 'Workflows'
 
   return (
-    <ProtoFrame title="WFE — modular yaml" note="v1 — layout & basic elements">
+    <ProtoFrame title="WFE — modular yaml" note="v2 — pipelines + view switching">
       <Flex direction="column" h="calc(100vh - 41px)">
         {/* ── Global header ── */}
         <GlobalHeader />
@@ -93,22 +152,46 @@ export function WfeModularYaml() {
             items={SIDEBAR_NAV}
             active={activeSidebarItem}
             onSelect={setActiveSidebarItem}
+            activeFileTab={activeFileTab}
+            onFileSelect={setActiveFileTab}
           />
 
-          {/* Center panel — workflow steps */}
-          <CenterPanel
-            workflows={WORKFLOWS}
-            selected={selectedWorkflow}
-            onSelect={setSelectedWorkflow}
-          />
+          {/* Center panel */}
+          {showPipeline ? (
+            <PipelinePanel pipeline={pipeline} pipelineName={selectedPipeline} />
+          ) : showWorkflow ? (
+            <WorkflowPanel
+              workflows={WORKFLOWS}
+              selected={selectedWorkflow}
+              onSelect={setSelectedWorkflow}
+            />
+          ) : (
+            <EmptyCanvas
+              moduleTab={activeFileTab}
+              entityType={activeSidebarItem}
+            />
+          )}
 
-          {/* Right panel — config */}
-          <RightPanel
-            workflowName={selectedWorkflow}
-            workflow={workflow}
-            activeTab={activeConfigTab}
-            onTabChange={setActiveConfigTab}
-          />
+          {/* Right panel */}
+          {showPipeline ? (
+            <PipelineRightPanel
+              pipelineName={selectedPipeline}
+              activeTab={activePplTab}
+              onTabChange={setActivePplTab}
+            />
+          ) : showWorkflow ? (
+            <WorkflowRightPanel
+              workflowName={selectedWorkflow}
+              workflow={workflow}
+              activeTab={activeConfigTab}
+              onTabChange={setActiveConfigTab}
+            />
+          ) : (
+            <EmptyRightPanel
+              moduleTab={activeFileTab}
+              entityType={activeSidebarItem}
+            />
+          )}
         </Flex>
       </Flex>
     </ProtoFrame>
@@ -128,16 +211,19 @@ function GlobalHeader() {
       color="bg"
       flexShrink={0}
     >
-      {/* Left: logo */}
       <HStack gap={3}>
         <Text fontWeight="bold" fontSize="sm">
           ⬡ bitrise
         </Text>
       </HStack>
-
-      {/* Right: global actions */}
       <HStack gap={4}>
-        <Text fontSize="xs" borderWidth="1px" borderColor="fg.muted" px={2} py={1}>
+        <Text
+          fontSize="xs"
+          borderWidth="1px"
+          borderColor="fg.muted"
+          px={2}
+          py={1}
+        >
           ✦ Ask AI
         </Text>
         <Text fontSize="xs">⌕</Text>
@@ -171,7 +257,6 @@ function TopBar() {
       bg="bg"
       flexShrink={0}
     >
-      {/* Left: breadcrumb */}
       <HStack gap={2}>
         <Text fontSize="xs" color="fg.muted" textDecoration="underline">
           Bitrise CI
@@ -189,8 +274,6 @@ function TopBar() {
           Workflow Editor
         </Text>
       </HStack>
-
-      {/* Right: action buttons */}
       <HStack gap={2}>
         <Button variant="outline" size="xs">
           Show diff
@@ -220,17 +303,27 @@ function FileTabBar({ tabs, active, onSelect }) {
       gap={4}
     >
       {/* Branch indicator */}
-      <HStack gap={1} py={2} pr={4} borderRightWidth="1px" borderColor="border">
-        <Text fontSize="xs" fontWeight="bold">
-          bitrise.yml
+      <HStack
+        gap={1}
+        py={2}
+        pr={4}
+        borderRightWidth="1px"
+        borderColor="border"
+        flexShrink={0}
+      >
+        <Text fontSize="xs" color="fg.muted">
+          bitrise.yml — in repo
         </Text>
         <Text fontSize="xs" color="fg.muted">
-          ⎇ ci-1234-feature-…
+          branch:
+        </Text>
+        <Text fontSize="xs" fontWeight="bold">
+          main (default)
         </Text>
       </HStack>
 
-      {/* File tabs */}
-      <HStack gap={0}>
+      {/* File tabs — scrollable */}
+      <Flex gap={0} overflow="auto" css={{ '&::-webkit-scrollbar': { display: 'none' } }}>
         {tabs.map((tab) => (
           <Button
             key={tab}
@@ -244,21 +337,24 @@ function FileTabBar({ tabs, active, onSelect }) {
             color={active === tab ? 'fg' : 'fg.muted'}
             px={3}
             py={2}
+            flexShrink={0}
+            whiteSpace="nowrap"
           >
             {tab}
           </Button>
         ))}
-      </HStack>
+      </Flex>
     </Flex>
   )
 }
 
 /* ── Left sidebar ── */
 
-function Sidebar({ items, active, onSelect }) {
+function Sidebar({ items, active, onSelect, activeFileTab, onFileSelect }) {
   return (
-    <Box
-      w="220px"
+    <Flex
+      direction="column"
+      w="320px"
       flexShrink={0}
       borderRightWidth="1px"
       borderColor="border"
@@ -266,6 +362,7 @@ function Sidebar({ items, active, onSelect }) {
       overflowY="auto"
       py={2}
     >
+      {/* Nav items */}
       <Stack gap={0}>
         {items.map((item) => (
           <Button
@@ -293,22 +390,38 @@ function Sidebar({ items, active, onSelect }) {
 
       <Separator my={3} />
 
-      <Button
-        variant="ghost"
-        size="sm"
-        justifyContent="flex-start"
-        borderRadius="0"
-        px={4}
-        py={2}
-        w="full"
-      >
-        <HStack gap={3}>
-          <Text fontSize="sm" color="fg.muted" w="16px" textAlign="center">
-            {'</>'}
-          </Text>
-          <Text fontSize="sm">bitrise.yml</Text>
-        </HStack>
-      </Button>
+      {/* File tree */}
+      <Box px={4} pb={2}>
+        <Text fontSize="xs" color="fg.muted" mb={2}>
+          @repo/branch/
+        </Text>
+        <Stack gap={0}>
+          {FILE_TREE.map((f, i) => {
+            const isClickable = !f.isFolder
+            const isActive = isClickable && activeFileTab === f.name
+            return (
+              <Text
+                key={i}
+                fontSize="xs"
+                color={isActive ? 'fg' : 'fg.muted'}
+                fontWeight={isActive ? 'bold' : 'normal'}
+                pl={f.depth * 4}
+                py={0.5}
+                cursor={isClickable ? 'pointer' : 'default'}
+                _hover={isClickable ? { color: 'fg' } : {}}
+                onClick={isClickable ? () => onFileSelect(f.name) : undefined}
+              >
+                {f.depth > 0 ? '| ' : ''}
+                {f.isFolder ? '📁 ' : f.depth > 0 ? '' : ''}
+                {f.name}
+              </Text>
+            )
+          })}
+        </Stack>
+      </Box>
+
+      {/* Spacer to push AI features to bottom */}
+      <Box flex="1" />
 
       <Separator my={3} />
 
@@ -328,24 +441,17 @@ function Sidebar({ items, active, onSelect }) {
           <Text fontSize="sm">AI features</Text>
         </HStack>
       </Button>
-    </Box>
+    </Flex>
   )
 }
 
-/* ── Center panel ── */
+/* ── Workflow center panel ── */
 
-function CenterPanel({ workflows, selected, onSelect }) {
+function WorkflowPanel({ workflows, selected, onSelect }) {
   const workflow = workflows[selected]
-  const workflowNames = Object.keys(workflows)
 
   return (
-    <Box
-      flex="1"
-      borderRightWidth="1px"
-      borderColor="border"
-      overflowY="auto"
-      p={5}
-    >
+    <Box flex="1" borderRightWidth="1px" borderColor="border" overflowY="auto" p={5}>
       {/* Workflow selector */}
       <Flex gap={2} mb={5}>
         <Box
@@ -355,7 +461,6 @@ function CenterPanel({ workflows, selected, onSelect }) {
           px={3}
           py={2}
           cursor="pointer"
-          position="relative"
         >
           <Flex justify="space-between" align="center">
             <Text fontSize="xs">
@@ -375,12 +480,7 @@ function CenterPanel({ workflows, selected, onSelect }) {
       </Flex>
 
       {/* Workflow card */}
-      <Box
-        borderWidth="1px"
-        borderColor="border"
-        bg="bg"
-      >
-        {/* Card header */}
+      <Box borderWidth="1px" borderColor="border" bg="bg">
         <Box px={4} py={3} borderBottomWidth="1px" borderColor="border">
           <Text fontSize="sm" fontWeight="bold">
             {selected}
@@ -389,8 +489,6 @@ function CenterPanel({ workflows, selected, onSelect }) {
             {workflow.stack}
           </Text>
         </Box>
-
-        {/* Steps list */}
         <Stack gap={0}>
           {workflow.steps.map((step, i) => (
             <Flex
@@ -404,12 +502,9 @@ function CenterPanel({ workflows, selected, onSelect }) {
               _hover={{ bg: 'bg.subtle' }}
               cursor="pointer"
             >
-              {/* Drag handle */}
               <Text fontSize="xs" color="fg.muted" userSelect="none">
                 ⠿
               </Text>
-
-              {/* Step icon placeholder */}
               <Flex
                 w="32px"
                 h="32px"
@@ -424,8 +519,6 @@ function CenterPanel({ workflows, selected, onSelect }) {
                   ☐
                 </Text>
               </Flex>
-
-              {/* Step info */}
               <Box>
                 <Text fontSize="sm">{step.name}</Text>
                 <Text fontSize="xs" color="fg.muted">
@@ -445,17 +538,104 @@ function CenterPanel({ workflows, selected, onSelect }) {
   )
 }
 
-/* ── Right panel ── */
+/* ── Pipeline center panel (graph view) ── */
 
-function RightPanel({ workflowName, workflow, activeTab, onTabChange }) {
+function PipelinePanel({ pipeline, pipelineName }) {
+  const stages = pipeline.stages
+
+  return (
+    <Box
+      flex="1"
+      borderRightWidth="1px"
+      borderColor="border"
+      overflowY="auto"
+      overflow="auto"
+      p={5}
+      position="relative"
+    >
+      {/* Pipeline name */}
+      <Text fontSize="xs" color="fg.muted" mb={4}>
+        {pipelineName}
+      </Text>
+
+      {/* Graph area */}
+      <Flex align="flex-start" gap={0} position="relative">
+        {stages.map((stage, stageIndex) => (
+          <Flex key={stage.id} align="flex-start">
+            {/* Workflow node */}
+            <Box
+              borderWidth="1px"
+              borderColor="border"
+              bg="bg"
+              minW="200px"
+              maxW="220px"
+            >
+              {/* Node header */}
+              <Box
+                px={3}
+                py={2}
+                borderBottomWidth={stage.steps.length > 0 ? '1px' : '0'}
+                borderColor="border"
+                bg="bg.subtle"
+              >
+                <Text fontSize="xs" fontWeight="bold">
+                  {stage.id}
+                </Text>
+              </Box>
+
+              {/* Steps inside node */}
+              {stage.steps.length > 0 && (
+                <Stack gap={0} p={2}>
+                  {stage.steps.map((step, i) => (
+                    <Box
+                      key={i}
+                      px={3}
+                      py={2}
+                      borderWidth="1px"
+                      borderColor="border"
+                      borderStyle={step.isBundle ? 'dashed' : 'solid'}
+                      bg="bg"
+                      mb={i < stage.steps.length - 1 ? 1 : 0}
+                    >
+                      <Text fontSize="xs">{step.name}</Text>
+                    </Box>
+                  ))}
+                </Stack>
+              )}
+            </Box>
+
+            {/* Arrow connector */}
+            {stageIndex < stages.length - 1 && (
+              <Flex align="center" px={3} pt={4}>
+                <Box w="40px" h="1px" bg="border" />
+                <Text fontSize="xs" color="fg.muted" mt="-1px">
+                  ▸
+                </Text>
+              </Flex>
+            )}
+          </Flex>
+        ))}
+      </Flex>
+
+      {/* Ghost view annotation */}
+      <Annotate>
+        What can a "ghost view" show? Can we show the steps inside? Can we show
+        steps in the step bundle — those coming from the SB definition, which is
+        not even mentioned in the current module?
+      </Annotate>
+    </Box>
+  )
+}
+
+/* ── Workflow right panel ── */
+
+function WorkflowRightPanel({ workflowName, workflow, activeTab, onTabChange }) {
   return (
     <Box w="380px" flexShrink={0} overflowY="auto" p={5}>
-      {/* Title */}
       <Heading size="sm" mb={4}>
         {workflowName}
       </Heading>
 
-      {/* Config tabs */}
       <HStack gap={0} borderBottomWidth="1px" borderColor="border" mb={5}>
         {CONFIG_TABS.map((tab) => (
           <Button
@@ -478,13 +658,7 @@ function RightPanel({ workflowName, workflow, activeTab, onTabChange }) {
 
       {activeTab === 'Configuration' && (
         <Stack gap={4}>
-          {/* Stack & Machine */}
-          <Box
-            borderWidth="1px"
-            borderColor="border"
-            px={4}
-            py={3}
-          >
+          <Box borderWidth="1px" borderColor="border" px={4} py={3}>
             <Flex justify="space-between" align="center">
               <Box>
                 <Text fontSize="sm" fontWeight="bold">
@@ -511,13 +685,7 @@ function RightPanel({ workflowName, workflow, activeTab, onTabChange }) {
             </Flex>
           </Box>
 
-          {/* Environment variables */}
-          <Box
-            borderWidth="1px"
-            borderColor="border"
-            px={4}
-            py={3}
-          >
+          <Box borderWidth="1px" borderColor="border" px={4} py={3}>
             <Flex justify="space-between" align="center">
               <Box>
                 <Text fontSize="sm" fontWeight="bold">
@@ -542,6 +710,97 @@ function RightPanel({ workflowName, workflow, activeTab, onTabChange }) {
       {activeTab === 'Triggers' && (
         <Placeholder label="Triggers panel — coming next" h="200px" />
       )}
+    </Box>
+  )
+}
+
+/* ── Pipeline right panel ── */
+
+function PipelineRightPanel({ pipelineName, activeTab, onTabChange }) {
+  return (
+    <Box w="380px" flexShrink={0} overflowY="auto" p={5}>
+      <HStack mb={1} gap={3}>
+        <Heading size="sm">PPL-1</Heading>
+        <Flex
+          w="24px"
+          h="24px"
+          align="center"
+          justify="center"
+          borderWidth="1px"
+          borderColor="border"
+          bg="bg.subtle"
+        >
+          <Text fontSize="xs">✓</Text>
+        </Flex>
+      </HStack>
+
+      <HStack gap={0} borderBottomWidth="1px" borderColor="border" mb={5} mt={4}>
+        {PPL_TABS.map((tab) => (
+          <Button
+            key={tab}
+            variant="ghost"
+            size="xs"
+            onClick={() => onTabChange(tab)}
+            borderBottomWidth="2px"
+            borderColor={activeTab === tab ? 'fg' : 'transparent'}
+            borderRadius="0"
+            fontWeight={activeTab === tab ? 'bold' : 'normal'}
+            color={activeTab === tab ? 'fg' : 'fg.muted'}
+            px={3}
+            py={2}
+          >
+            {tab}
+          </Button>
+        ))}
+      </HStack>
+
+      {activeTab === 'Properties' && (
+        <Box>
+          <Text fontSize="xs" color="fg.muted">
+            All properties belong to the PPL definition and are editable in this
+            view.
+          </Text>
+          <Placeholder label="Pipeline properties" h="200px" mt={4} />
+        </Box>
+      )}
+
+      {activeTab === 'Triggers' && (
+        <Placeholder label="Pipeline triggers" h="200px" />
+      )}
+    </Box>
+  )
+}
+
+/* ── Empty states ── */
+
+function EmptyCanvas({ moduleTab, entityType }) {
+  return (
+    <Flex
+      flex="1"
+      borderRightWidth="1px"
+      borderColor="border"
+      align="center"
+      justify="center"
+      p={5}
+    >
+      <Stack align="center" gap={2}>
+        <Text fontSize="sm" color="fg.muted">
+          {moduleTab}
+        </Text>
+        <Text fontSize="xs" color="fg.subtle">
+          No {entityType.toLowerCase()} content in this module yet.
+        </Text>
+      </Stack>
+    </Flex>
+  )
+}
+
+function EmptyRightPanel({ moduleTab, entityType }) {
+  return (
+    <Box w="380px" flexShrink={0} overflowY="auto" p={5}>
+      <Text fontSize="xs" color="fg.subtle">
+        Select a {entityType.toLowerCase().replace(/s$/, '')} to see its properties.
+      </Text>
     </Box>
   )
 }
