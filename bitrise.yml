@@ -27,26 +27,25 @@ workflows:
             set -e
             set -o pipefail
 
+            # Save build output outside the working tree
+            cp -r dist/ /tmp/gh-pages-dist
+
             git config user.email "ci@bitrise.io"
             git config user.name "Bitrise CI"
 
-            git remote set-url origin git@github.com:balazs-wagner/proton.git
+            # Use HTTPS + token so we don't need SSH write access
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/balazs-wagner/proton.git"
 
-            git add -f dist/
-            git stash
-
+            # Switch to gh-pages branch (clean slate)
             git fetch origin gh-pages || true
             git checkout gh-pages 2>/dev/null || git checkout --orphan gh-pages
 
+            # Remove everything, then copy only the build output
             git rm -rf . --quiet || true
-
-            git stash pop || git checkout stash -- dist/
-
-            cp -r dist/. .
-            rm -rf dist/
+            cp -r /tmp/gh-pages-dist/. .
 
             git add -A
-            git commit -m "Deploy to GitHub Pages [skip ci]"
+            git commit -m "Deploy to GitHub Pages [skip ci]" || echo "Nothing to deploy"
             git push origin gh-pages
     - deploy-to-bitrise-io@2: {}
     triggers:
