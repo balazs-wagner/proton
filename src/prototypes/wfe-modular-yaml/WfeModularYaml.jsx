@@ -83,6 +83,7 @@ const WORKFLOWS = {
   'testing-workflow': {
     stack: 'Xcode 1.2.3 emulated',
     machine: 'M1 medium',
+    module: 'workflows.yml',
     steps: [
       { name: 'Git Clone repository', version: '4.1.2' },
       { name: 'Save cache', version: '1.5.1' },
@@ -93,6 +94,7 @@ const WORKFLOWS = {
   'deploy-workflow': {
     stack: 'Xcode 1.2.3 emulated',
     machine: 'M1 large',
+    module: 'workflows.yml',
     steps: [
       { name: 'Git Clone repository', version: '4.1.2' },
       { name: 'Restore cache', version: '2.0.3' },
@@ -100,6 +102,48 @@ const WORKFLOWS = {
       { name: 'Deploy to App Store Connect', version: '3.0.1' },
     ],
   },
+  'setup_and_build_android_app': {
+    stack: 'Ubuntu 22.04 for Android & Docker',
+    machine: 'Large',
+    module: 'build_app.yml',
+    steps: [
+      { name: 'Git Clone repository', version: '4.1.2' },
+      { name: 'Android SDK Update', version: '2.1.0' },
+      { name: 'step_bundle 01', version: '', isBundle: true, children: [
+        { name: 'Install build tools', version: '1.0.0' },
+        { name: 'Configure signing', version: '1.2.0' },
+      ]},
+      { name: 'Android Build', version: '3.0.1' },
+      { name: 'Deploy to Bitrise.io', version: '2.23.1' },
+    ],
+  },
+  'android_e2e_stress_test': {
+    stack: 'Ubuntu 22.04 for Android & Docker',
+    machine: 'Large',
+    module: 'run_performance_test.yml',
+    steps: [
+      { name: 'Git Clone repository', version: '4.1.2' },
+      { name: 'Install dependencies', version: '1.3.0' },
+      { name: 'sb_e2e_config', version: '', isBundle: true, children: [
+        { name: 'Configure devices', version: '1.0.0' },
+        { name: 'Set test parameters', version: '1.1.0' },
+      ]},
+      { name: 'Run stress tests', version: '2.0.0' },
+      { name: 'Collect results', version: '1.0.5' },
+      { name: 'sb_reporting', version: '', isBundle: true, children: [
+        { name: 'Generate report', version: '1.2.0' },
+        { name: 'Upload artifacts', version: '2.0.1' },
+        { name: 'Notify team', version: '1.0.0' },
+      ]},
+    ],
+  },
+}
+
+// Maps module tabs to the workflow(s) they contain
+const MODULE_WORKFLOWS = {
+  'workflows.yml': ['testing-workflow', 'deploy-workflow'],
+  'build_app.yml': ['setup_and_build_android_app'],
+  'run_performance_test.yml': ['android_e2e_stress_test'],
 }
 
 const PIPELINES = {
@@ -120,7 +164,21 @@ const PIPELINES = {
       },
       {
         id: 'android_e2e_stress_test',
-        steps: [],
+        steps: [
+          { name: 'setup environment' },
+          { name: 'install dependencies' },
+          { name: 'sb_e2e_config', isBundle: true, children: [
+            { name: 'configure devices' },
+            { name: 'set test parameters' },
+          ]},
+          { name: 'run stress tests' },
+          { name: 'collect results' },
+          { name: 'sb_reporting', isBundle: true, children: [
+            { name: 'generate report' },
+            { name: 'upload artifacts' },
+            { name: 'notify team' },
+          ]},
+        ],
         next: [],
       },
     ],
@@ -180,13 +238,20 @@ export function WfeModularYaml() {
       [id]: { ...getWfState(id), ...patch },
     }))
 
-  const workflow = WORKFLOWS[selectedWorkflow]
   const pipeline = PIPELINES[selectedPipeline]
+
+  // Determine which workflows belong to the current module tab
+  const moduleWfs = MODULE_WORKFLOWS[activeFileTab] || []
+  const hasWorkflowContent = moduleWfs.length > 0 && activeSidebarItem === 'Workflows'
+
+  // Auto-select first workflow in the module if the current selection doesn't belong
+  const effectiveSelectedWf =
+    moduleWfs.includes(selectedWorkflow) ? selectedWorkflow : moduleWfs[0]
+  const workflow = WORKFLOWS[effectiveSelectedWf]
 
   const showPipeline =
     activeFileTab === 'pipelines.yml' && activeSidebarItem === 'Pipelines'
-  const showWorkflow =
-    activeFileTab === 'workflows.yml' && activeSidebarItem === 'Workflows'
+  const showWorkflow = hasWorkflowContent
 
   return (
     <ProtoFrame title="WFE — modular yaml" note="v2 — pipelines + view switching">
@@ -238,8 +303,10 @@ export function WfeModularYaml() {
             />
           ) : showWorkflow ? (
             <WorkflowPanel
-              workflows={WORKFLOWS}
-              selected={selectedWorkflow}
+              workflows={Object.fromEntries(
+                moduleWfs.map((id) => [id, WORKFLOWS[id]])
+              )}
+              selected={effectiveSelectedWf}
               onSelect={setSelectedWorkflow}
             />
           ) : (
@@ -281,7 +348,7 @@ export function WfeModularYaml() {
           )}
           {showWorkflow && (
             <WorkflowRightPanel
-              workflowName={selectedWorkflow}
+              workflowName={effectiveSelectedWf}
               workflow={workflow}
               activeTab={activeConfigTab}
               onTabChange={setActiveConfigTab}
@@ -645,42 +712,100 @@ function WorkflowPanel({ workflows, selected, onSelect }) {
           </Text>
         </Box>
         <Stack gap={0}>
-          {workflow.steps.map((step, i) => (
-            <Flex
-              key={i}
-              px={4}
-              py={3}
-              align="center"
-              gap={3}
-              borderBottomWidth={i < workflow.steps.length - 1 ? '1px' : '0'}
-              borderColor="border"
-              _hover={{ bg: 'bg.subtle' }}
-              cursor="pointer"
-            >
-              <Box color="fg.muted" userSelect="none" flexShrink={0}>
-                <GripVertical size={14} />
-              </Box>
-              <Flex
-                w="32px"
-                h="32px"
-                align="center"
-                justify="center"
-                borderWidth="1px"
+          {workflow.steps.map((step, i) =>
+            step.isBundle ? (
+              <Box
+                key={i}
+                px={4}
+                py={3}
+                borderBottomWidth={i < workflow.steps.length - 1 ? '1px' : '0'}
                 borderColor="border"
-                bg="bg.muted"
-                flexShrink={0}
-                color="fg.muted"
               >
-                <FileCode size={14} />
-              </Flex>
-              <Box>
-                <Text fontSize="sm">{step.name}</Text>
-                <Text fontSize="xs" color="fg.muted">
-                  {step.version}
-                </Text>
+                <Flex align="center" gap={3} mb={2}>
+                  <Box color="fg.muted" userSelect="none" flexShrink={0}>
+                    <GripVertical size={14} />
+                  </Box>
+                  <Flex
+                    w="32px"
+                    h="32px"
+                    align="center"
+                    justify="center"
+                    borderWidth="1px"
+                    borderColor="border"
+                    borderStyle="dashed"
+                    bg="bg.subtle"
+                    flexShrink={0}
+                    color="fg.muted"
+                  >
+                    <FileCode size={14} />
+                  </Flex>
+                  <Text fontSize="sm" fontWeight="bold">{step.name}</Text>
+                </Flex>
+                {step.children && (
+                  <Stack gap={0} pl={10}>
+                    {step.children.map((child, j) => (
+                      <Flex
+                        key={j}
+                        px={3}
+                        py={2}
+                        align="center"
+                        gap={3}
+                        borderWidth="1px"
+                        borderColor="border"
+                        bg="bg"
+                        mb={j < step.children.length - 1 ? 1 : 0}
+                      >
+                        <Box color="fg.muted" flexShrink={0}>
+                          <FileCode size={12} />
+                        </Box>
+                        <Box>
+                          <Text fontSize="xs">{child.name}</Text>
+                          {child.version && (
+                            <Text fontSize="xs" color="fg.muted">{child.version}</Text>
+                          )}
+                        </Box>
+                      </Flex>
+                    ))}
+                  </Stack>
+                )}
               </Box>
-            </Flex>
-          ))}
+            ) : (
+              <Flex
+                key={i}
+                px={4}
+                py={3}
+                align="center"
+                gap={3}
+                borderBottomWidth={i < workflow.steps.length - 1 ? '1px' : '0'}
+                borderColor="border"
+                _hover={{ bg: 'bg.subtle' }}
+                cursor="pointer"
+              >
+                <Box color="fg.muted" userSelect="none" flexShrink={0}>
+                  <GripVertical size={14} />
+                </Box>
+                <Flex
+                  w="32px"
+                  h="32px"
+                  align="center"
+                  justify="center"
+                  borderWidth="1px"
+                  borderColor="border"
+                  bg="bg.muted"
+                  flexShrink={0}
+                  color="fg.muted"
+                >
+                  <FileCode size={14} />
+                </Flex>
+                <Box>
+                  <Text fontSize="sm">{step.name}</Text>
+                  {step.version && (
+                    <Text fontSize="xs" color="fg.muted">{step.version}</Text>
+                  )}
+                </Box>
+              </Flex>
+            )
+          )}
         </Stack>
       </Box>
 
