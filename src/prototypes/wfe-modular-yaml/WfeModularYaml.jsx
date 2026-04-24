@@ -488,34 +488,7 @@ function Sidebar({ items, active, onSelect, activeFileTab, onFileSelect }) {
       <Separator my={3} />
 
       {/* File tree */}
-      <Box px={4} pb={2}>
-        <Text fontSize="xs" color="fg.muted" mb={2}>
-          @repo/branch/
-        </Text>
-        <Stack gap={0}>
-          {FILE_TREE.map((f, i) => {
-            const isClickable = !f.isFolder && f.tab
-            const isActive = isClickable && activeFileTab === f.tab
-            return (
-              <Text
-                key={i}
-                fontSize="xs"
-                color={isActive ? 'fg' : 'fg.muted'}
-                fontWeight={isActive ? 'bold' : 'normal'}
-                pl={f.depth * 3}
-                py={0.5}
-                cursor={isClickable ? 'pointer' : 'default'}
-                _hover={isClickable ? { color: 'fg' } : {}}
-                onClick={isClickable ? () => onFileSelect(f.tab) : undefined}
-              >
-                {'  '.repeat(f.depth > 0 ? 1 : 0)}
-                {f.isFolder ? '📁 ' : ''}
-                {f.name}
-              </Text>
-            )
-          })}
-        </Stack>
-      </Box>
+      <FileTree activeFileTab={activeFileTab} onFileSelect={onFileSelect} />
 
       {/* Spacer to push AI features to bottom */}
       <Box flex="1" />
@@ -539,6 +512,93 @@ function Sidebar({ items, active, onSelect, activeFileTab, onFileSelect }) {
         </HStack>
       </Button>
     </Flex>
+  )
+}
+
+/* ── File tree (collapsible folders) ── */
+
+function FileTree({ activeFileTab, onFileSelect }) {
+  // Track open/closed state for each folder by index
+  const folderIndices = FILE_TREE
+    .map((f, i) => (f.isFolder ? i : null))
+    .filter((i) => i !== null)
+
+  const [openFolders, setOpenFolders] = useState(
+    () => new Set(folderIndices) // all open by default
+  )
+
+  const toggleFolder = (idx) => {
+    setOpenFolders((prev) => {
+      const next = new Set(prev)
+      if (next.has(idx)) {
+        next.delete(idx)
+      } else {
+        next.add(idx)
+      }
+      return next
+    })
+  }
+
+  // For each item, determine if it should be visible:
+  // a file/folder is visible if all its ancestor folders are open.
+  // We track the "current open depth" — if a folder at depth D is closed,
+  // hide everything after it until we hit something at depth <= D.
+  const visibleItems = []
+  let hiddenBelowDepth = null
+
+  for (let i = 0; i < FILE_TREE.length; i++) {
+    const f = FILE_TREE[i]
+
+    if (hiddenBelowDepth !== null && f.depth > hiddenBelowDepth) {
+      continue // hidden by a collapsed parent
+    }
+    hiddenBelowDepth = null // reset
+
+    visibleItems.push({ ...f, index: i })
+
+    if (f.isFolder && !openFolders.has(i)) {
+      hiddenBelowDepth = f.depth // collapse children
+    }
+  }
+
+  return (
+    <Box px={4} pb={2}>
+      <Text fontSize="xs" color="fg.muted" mb={2}>
+        @repo/branch/
+      </Text>
+      <Stack gap={0}>
+        {visibleItems.map((f) => {
+          const isClickable = !f.isFolder && f.tab
+          const isActive = isClickable && activeFileTab === f.tab
+          const isOpen = f.isFolder && openFolders.has(f.index)
+
+          return (
+            <Text
+              key={f.index}
+              fontSize="xs"
+              color={isActive ? 'fg' : 'fg.muted'}
+              fontWeight={isActive ? 'bold' : 'normal'}
+              pl={f.depth * 3}
+              py={0.5}
+              cursor={isClickable || f.isFolder ? 'pointer' : 'default'}
+              _hover={isClickable || f.isFolder ? { color: 'fg' } : {}}
+              onClick={
+                f.isFolder
+                  ? () => toggleFolder(f.index)
+                  : isClickable
+                  ? () => onFileSelect(f.tab)
+                  : undefined
+              }
+              userSelect="none"
+            >
+              {'  '.repeat(f.depth > 0 ? 1 : 0)}
+              {f.isFolder ? (isOpen ? '📂 ' : '📁 ') : ''}
+              {f.name}
+            </Text>
+          )
+        })}
+      </Stack>
+    </Box>
   )
 }
 
@@ -1244,7 +1304,7 @@ function WfDrawerConfiguration({ workflowId, state, onChange, onEditDefinition }
           <Box px={4} pb={4} opacity={0.6}>
             <Separator mb={4} />
 
-            <Text fontSize="xs" color="fg.muted" mb={3} textDecoration="underline" cursor="pointer" onClick={onEditDefinition}>
+            <Text fontSize="xs" color="fg" mb={3} textDecoration="underline" cursor="pointer" onClick={onEditDefinition} opacity={1}>
               Edit definition →
             </Text>
 
@@ -1326,7 +1386,7 @@ function WfDrawerConfiguration({ workflowId, state, onChange, onEditDefinition }
         {envOpen && (
           <Box px={4} pb={3} opacity={0.6}>
             <Separator mb={3} />
-            <Text fontSize="xs" color="fg.muted" mb={3} textDecoration="underline" cursor="pointer" onClick={onEditDefinition}>
+            <Text fontSize="xs" color="fg" mb={3} textDecoration="underline" cursor="pointer" onClick={onEditDefinition} opacity={1}>
               Edit definition →
             </Text>
             <Text fontSize="xs" color="fg.subtle">
@@ -1342,7 +1402,7 @@ function WfDrawerConfiguration({ workflowId, state, onChange, onEditDefinition }
 function WfDrawerProperties({ workflowId, state, onChange, onEditDefinition }) {
   return (
     <Stack gap={5} opacity={0.6}>
-      <Text fontSize="xs" color="fg.muted" textDecoration="underline" cursor="pointer" onClick={onEditDefinition}>
+      <Text fontSize="xs" color="fg" textDecoration="underline" cursor="pointer" onClick={onEditDefinition} opacity={1}>
         Edit definition →
       </Text>
 
