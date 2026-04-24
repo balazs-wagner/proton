@@ -65,15 +65,18 @@ const FILE_TABS = [
 ]
 
 const FILE_TREE = [
-  { name: 'bitrise.yml', depth: 0 },
-  { name: 'modules/', depth: 0, isFolder: true },
-  { name: 'testing.yml', depth: 1 },
-  { name: 'pipelines.yml', depth: 1 },
-  { name: 'workflows.yml', depth: 1 },
-  { name: 'build_app.yml', depth: 1 },
-  { name: 'run_performance_test.yml', depth: 1 },
-  { name: 'analyse_results.yml', depth: 1 },
-  { name: 'step_bundles.yml', depth: 1 },
+  { name: 'bitrise.yml', depth: 0, tab: 'bitrise.yml' },
+  { name: 'e2e/bitrise/testing/', depth: 0, isFolder: true },
+  { name: 'testing.yml', depth: 1, tab: 'testing.yml' },
+  { name: 'browserstack/', depth: 1, isFolder: true },
+  { name: 'pipelines.yml', depth: 2, tab: 'pipelines.yml' },
+  { name: 'workflows/', depth: 2, isFolder: true },
+  { name: 'workflows.yml', depth: 3, tab: 'workflows.yml' },
+  { name: 'build_app.yml', depth: 3, tab: 'build_app.yml' },
+  { name: 'run_performance_test.yml', depth: 3, tab: 'run_performance_test.yml' },
+  { name: 'analyse_results.yml', depth: 3, tab: 'analyse_results.yml' },
+  { name: 'step_bundles/', depth: 1, isFolder: true },
+  { name: 'step_bundles.yml', depth: 2, tab: 'step_bundles.yml' },
 ]
 
 const WORKFLOWS = {
@@ -122,6 +125,12 @@ const PIPELINES = {
       },
     ],
   },
+}
+
+// Maps workflow IDs to the module where they are defined
+const WF_DEFINITION_MODULE = {
+  'setup_and_build_android_app': 'build_app.yml',
+  'android_e2e_stress_test': 'run_performance_test.yml',
 }
 
 const CONFIG_TABS = ['Configuration', 'Properties', 'Triggers']
@@ -257,6 +266,14 @@ export function WfeModularYaml() {
               onClose={() => setDrawerOpen(false)}
               state={getWfState(editingWorkflowId)}
               onStateChange={(patch) => updateWfState(editingWorkflowId, patch)}
+              onEditDefinition={() => {
+                const targetModule = WF_DEFINITION_MODULE[editingWorkflowId]
+                if (targetModule) {
+                  setActiveFileTab(targetModule)
+                  setActiveSidebarItem('Workflows')
+                  setDrawerOpen(false)
+                }
+              }}
             />
           )}
           {showPipeline && drawerOpen && drawerMode === 'add-workflows' && (
@@ -477,22 +494,22 @@ function Sidebar({ items, active, onSelect, activeFileTab, onFileSelect }) {
         </Text>
         <Stack gap={0}>
           {FILE_TREE.map((f, i) => {
-            const isClickable = !f.isFolder
-            const isActive = isClickable && activeFileTab === f.name
+            const isClickable = !f.isFolder && f.tab
+            const isActive = isClickable && activeFileTab === f.tab
             return (
               <Text
                 key={i}
                 fontSize="xs"
                 color={isActive ? 'fg' : 'fg.muted'}
                 fontWeight={isActive ? 'bold' : 'normal'}
-                pl={f.depth * 4}
+                pl={f.depth * 3}
                 py={0.5}
                 cursor={isClickable ? 'pointer' : 'default'}
                 _hover={isClickable ? { color: 'fg' } : {}}
-                onClick={isClickable ? () => onFileSelect(f.name) : undefined}
+                onClick={isClickable ? () => onFileSelect(f.tab) : undefined}
               >
-                {f.depth > 0 ? '| ' : ''}
-                {f.isFolder ? '📁 ' : f.depth > 0 ? '' : ''}
+                {'  '.repeat(f.depth > 0 ? 1 : 0)}
+                {f.isFolder ? '📁 ' : ''}
                 {f.name}
               </Text>
             )
@@ -995,7 +1012,7 @@ function PipelineRightPanel({ pipelineName, activeTab, onTabChange, onClose }) {
 
 const WF_DRAWER_TABS = ['Configuration', 'Properties']
 
-function WorkflowDrawer({ workflowId, activeTab, onTabChange, onClose, state, onStateChange }) {
+function WorkflowDrawer({ workflowId, activeTab, onTabChange, onClose, state, onStateChange, onEditDefinition }) {
   return (
     <Box
       position="absolute"
@@ -1051,17 +1068,17 @@ function WorkflowDrawer({ workflowId, activeTab, onTabChange, onClose, state, on
       </HStack>
 
       {activeTab === 'Configuration' && (
-        <WfDrawerConfiguration workflowId={workflowId} state={state} onChange={onStateChange} />
+        <WfDrawerConfiguration workflowId={workflowId} state={state} onChange={onStateChange} onEditDefinition={onEditDefinition} />
       )}
 
       {activeTab === 'Properties' && (
-        <WfDrawerProperties workflowId={workflowId} state={state} onChange={onStateChange} />
+        <WfDrawerProperties workflowId={workflowId} state={state} onChange={onStateChange} onEditDefinition={onEditDefinition} />
       )}
     </Box>
   )
 }
 
-function WfDrawerConfiguration({ workflowId, state, onChange }) {
+function WfDrawerConfiguration({ workflowId, state, onChange, onEditDefinition }) {
   const { pplCondOpen, stackOpen, envOpen, abortOnFailure, alwaysRun, runConditions, parallelCopies, stack, machineType } = state
 
   return (
@@ -1227,7 +1244,7 @@ function WfDrawerConfiguration({ workflowId, state, onChange }) {
           <Box px={4} pb={4} opacity={0.6}>
             <Separator mb={4} />
 
-            <Text fontSize="xs" color="fg.muted" mb={3} textDecoration="underline" cursor="pointer">
+            <Text fontSize="xs" color="fg.muted" mb={3} textDecoration="underline" cursor="pointer" onClick={onEditDefinition}>
               Edit definition →
             </Text>
 
@@ -1309,7 +1326,7 @@ function WfDrawerConfiguration({ workflowId, state, onChange }) {
         {envOpen && (
           <Box px={4} pb={3} opacity={0.6}>
             <Separator mb={3} />
-            <Text fontSize="xs" color="fg.muted" mb={3} textDecoration="underline" cursor="pointer">
+            <Text fontSize="xs" color="fg.muted" mb={3} textDecoration="underline" cursor="pointer" onClick={onEditDefinition}>
               Edit definition →
             </Text>
             <Text fontSize="xs" color="fg.subtle">
@@ -1322,10 +1339,10 @@ function WfDrawerConfiguration({ workflowId, state, onChange }) {
   )
 }
 
-function WfDrawerProperties({ workflowId, state, onChange }) {
+function WfDrawerProperties({ workflowId, state, onChange, onEditDefinition }) {
   return (
     <Stack gap={5} opacity={0.6}>
-      <Text fontSize="xs" color="fg.muted" textDecoration="underline" cursor="pointer">
+      <Text fontSize="xs" color="fg.muted" textDecoration="underline" cursor="pointer" onClick={onEditDefinition}>
         Edit definition →
       </Text>
 
