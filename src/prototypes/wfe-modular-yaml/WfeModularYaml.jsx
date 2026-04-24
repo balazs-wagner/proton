@@ -107,9 +107,10 @@ const PIPELINES = {
         steps: [
           { name: 'step 01' },
           { name: 'step 02' },
-          { name: 'step_bundle 01', isBundle: true },
-          { name: 'step 03' },
-          { name: 'step 04' },
+          { name: 'step_bundle 01', isBundle: true, children: [
+            { name: 'step 03' },
+            { name: 'step 04' },
+          ]},
           { name: 'step 05' },
         ],
         next: ['android_e2e_stress_test'],
@@ -141,6 +142,34 @@ export function WfeModularYaml() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerMode, setDrawerMode] = useState('pipeline') // 'pipeline' | 'workflow' | 'add-workflows'
   const [editingWorkflowId, setEditingWorkflowId] = useState(null)
+
+  // Per-workflow persistent state (keyed by workflow ID)
+  const [wfStates, setWfStates] = useState({})
+
+  const getWfState = (id) =>
+    wfStates[id] || {
+      // Config tab
+      abortOnFailure: false,
+      alwaysRun: 'off',
+      runConditions: '',
+      parallelCopies: '',
+      stack: 'default-ubuntu-22',
+      machineType: 'default-large',
+      // Properties tab
+      name: id,
+      summary: '',
+      description: '',
+      // Accordion open/close
+      pplCondOpen: true,
+      stackOpen: true,
+      envOpen: true,
+    }
+
+  const updateWfState = (id, patch) =>
+    setWfStates((prev) => ({
+      ...prev,
+      [id]: { ...getWfState(id), ...patch },
+    }))
 
   const workflow = WORKFLOWS[selectedWorkflow]
   const pipeline = PIPELINES[selectedPipeline]
@@ -226,6 +255,8 @@ export function WfeModularYaml() {
               activeTab={activeWfDrawerTab}
               onTabChange={setActiveWfDrawerTab}
               onClose={() => setDrawerOpen(false)}
+              state={getWfState(editingWorkflowId)}
+              onStateChange={(patch) => updateWfState(editingWorkflowId, patch)}
             />
           )}
           {showPipeline && drawerOpen && drawerMode === 'add-workflows' && (
@@ -732,18 +763,51 @@ function PipelinePanel({ pipeline, pipelineName, onEditWorkflow, onOpenPropertie
               {stage.steps.length > 0 && (
                 <Stack gap={0} p={2}>
                   {stage.steps.map((step, i) => (
-                    <Box
-                      key={i}
-                      px={3}
-                      py={2}
-                      borderWidth="1px"
-                      borderColor="border"
-                      borderStyle={step.isBundle ? 'dashed' : 'solid'}
-                      bg="bg"
-                      mb={i < stage.steps.length - 1 ? 1 : 0}
-                    >
-                      <Text fontSize="xs">{step.name}</Text>
-                    </Box>
+                    step.isBundle ? (
+                      <Box
+                        key={i}
+                        px={2}
+                        pt={2}
+                        pb={1}
+                        borderWidth="1px"
+                        borderColor="border"
+                        borderStyle="dashed"
+                        bg="bg.subtle"
+                        mb={i < stage.steps.length - 1 ? 1 : 0}
+                      >
+                        <Text fontSize="xs" fontWeight="bold" mb={1}>
+                          {step.name}
+                        </Text>
+                        {step.children && (
+                          <Stack gap={1}>
+                            {step.children.map((child, j) => (
+                              <Box
+                                key={j}
+                                px={3}
+                                py={2}
+                                borderWidth="1px"
+                                borderColor="border"
+                                bg="bg"
+                              >
+                                <Text fontSize="xs">{child.name}</Text>
+                              </Box>
+                            ))}
+                          </Stack>
+                        )}
+                      </Box>
+                    ) : (
+                      <Box
+                        key={i}
+                        px={3}
+                        py={2}
+                        borderWidth="1px"
+                        borderColor="border"
+                        bg="bg"
+                        mb={i < stage.steps.length - 1 ? 1 : 0}
+                      >
+                        <Text fontSize="xs">{step.name}</Text>
+                      </Box>
+                    )
                   ))}
                 </Stack>
               )}
@@ -931,7 +995,7 @@ function PipelineRightPanel({ pipelineName, activeTab, onTabChange, onClose }) {
 
 const WF_DRAWER_TABS = ['Configuration', 'Properties']
 
-function WorkflowDrawer({ workflowId, activeTab, onTabChange, onClose }) {
+function WorkflowDrawer({ workflowId, activeTab, onTabChange, onClose, state, onStateChange }) {
   return (
     <Box
       position="absolute"
@@ -987,21 +1051,18 @@ function WorkflowDrawer({ workflowId, activeTab, onTabChange, onClose }) {
       </HStack>
 
       {activeTab === 'Configuration' && (
-        <WfDrawerConfiguration workflowId={workflowId} />
+        <WfDrawerConfiguration workflowId={workflowId} state={state} onChange={onStateChange} />
       )}
 
       {activeTab === 'Properties' && (
-        <WfDrawerProperties workflowId={workflowId} />
+        <WfDrawerProperties workflowId={workflowId} state={state} onChange={onStateChange} />
       )}
     </Box>
   )
 }
 
-function WfDrawerConfiguration({ workflowId }) {
-  const [pplCondOpen, setPplCondOpen] = useState(true)
-  const [stackOpen, setStackOpen] = useState(true)
-  const [envOpen, setEnvOpen] = useState(true)
-  const [abortOnFailure, setAbortOnFailure] = useState(false)
+function WfDrawerConfiguration({ workflowId, state, onChange }) {
+  const { pplCondOpen, stackOpen, envOpen, abortOnFailure, alwaysRun, runConditions, parallelCopies, stack, machineType } = state
 
   return (
     <Stack gap={4}>
@@ -1013,7 +1074,7 @@ function WfDrawerConfiguration({ workflowId }) {
           justify="space-between"
           align="center"
           cursor="pointer"
-          onClick={() => setPplCondOpen(!pplCondOpen)}
+          onClick={() => onChange({ pplCondOpen: !pplCondOpen })}
         >
           <Box>
             <Text fontSize="sm" fontWeight="bold">
@@ -1055,7 +1116,7 @@ function WfDrawerConfiguration({ workflowId }) {
                 position="relative"
                 flexShrink={0}
                 ml={4}
-                onClick={() => setAbortOnFailure(!abortOnFailure)}
+                onClick={() => onChange({ abortOnFailure: !abortOnFailure })}
               >
                 <Box
                   w="16px"
@@ -1077,7 +1138,7 @@ function WfDrawerConfiguration({ workflowId }) {
               <Text fontSize="sm" fontWeight="bold" mb={1}>
                 Always run
               </Text>
-              <Select value="off" onChange={() => {}} options={[{value: 'off', label: 'Off'}, {value: 'on', label: 'On'}]} />
+              <Select value={alwaysRun} onChange={(v) => onChange({ alwaysRun: v })} options={[{value: 'off', label: 'Off'}, {value: 'on', label: 'On'}]} />
               <Text fontSize="xs" color="fg.muted" mt={1}>
                 This Workflow or its dependent Workflows won't start if previous
                 Workflows failed.
@@ -1094,7 +1155,7 @@ function WfDrawerConfiguration({ workflowId }) {
                   (optional)
                 </Text>
               </Text>
-              <Textarea placeholder="Enter any valid Go template" rows={3} size="sm" />
+              <Textarea placeholder="Enter any valid Go template" rows={3} size="sm" value={runConditions} onChange={(e) => onChange({ runConditions: e.target.value })} />
               <Text fontSize="xs" color="fg.muted" mt={1}>
                 Enter any valid Go template. The workflow will only be executed
                 if this template evaluates to true. You can use our `getenv` and
@@ -1112,7 +1173,7 @@ function WfDrawerConfiguration({ workflowId }) {
                   (optional)
                 </Text>
               </Text>
-              <Input placeholder="" size="sm" />
+              <Input placeholder="" size="sm" value={parallelCopies} onChange={(e) => onChange({ parallelCopies: e.target.value })} />
               <Text fontSize="xs" color="fg.muted" mt={1}>
                 The number of copies of this Workflow that will be executed in
                 parallel at runtime. Value can be a number, or an Env Var.
@@ -1133,7 +1194,7 @@ function WfDrawerConfiguration({ workflowId }) {
           justify="space-between"
           align="center"
           cursor="pointer"
-          onClick={() => setStackOpen(!stackOpen)}
+          onClick={() => onChange({ stackOpen: !stackOpen })}
         >
           <Box>
             <Text fontSize="sm" fontWeight="bold">
@@ -1163,15 +1224,19 @@ function WfDrawerConfiguration({ workflowId }) {
           </HStack>
         </Flex>
         {stackOpen && (
-          <Box px={4} pb={4}>
+          <Box px={4} pb={4} opacity={0.6}>
             <Separator mb={4} />
+
+            <Text fontSize="xs" color="fg.muted" mb={3} textDecoration="underline" cursor="pointer">
+              Edit definition →
+            </Text>
 
             {/* Stack */}
             <Box mb={4}>
               <Text fontSize="sm" fontWeight="bold" mb={1}>
                 Stack
               </Text>
-              <Select value="default-ubuntu-22" onChange={() => {}} options={[{value: 'default-ubuntu-22', label: 'Default - Ubuntu 22.04 for Android & Docker'}]} />
+              <Select value={stack} onChange={() => {}} options={[{value: 'default-ubuntu-22', label: 'Default - Ubuntu 22.04 for Android & Docker'}, {value: 'xcode-16', label: 'Xcode 16.4 on macOS Sequoia'}, {value: 'xcode-15', label: 'Xcode 15.4 on macOS Sonoma'}]} disabled />
               <Text fontSize="xs" color="fg.muted" mt={1}>
                 Docker container environment based on Ubuntu 22.04. Preinstalled
                 Android SDK and other common tools.
@@ -1205,7 +1270,7 @@ function WfDrawerConfiguration({ workflowId }) {
               <Text fontSize="sm" fontWeight="bold" mb={1}>
                 Machine type ⓘ
               </Text>
-              <Select value="default-large" onChange={() => {}} options={[{value: 'default-large', label: 'Default - Large'}]} />
+              <Select value={machineType} onChange={() => {}} options={[{value: 'default-large', label: 'Default - Large'}, {value: 'medium', label: 'Medium'}, {value: 'x-large', label: 'Extra Large'}]} disabled />
               <Text fontSize="xs" color="fg.muted" mt={1}>
                 Machine types may vary depending on high demand.
               </Text>
@@ -1228,7 +1293,7 @@ function WfDrawerConfiguration({ workflowId }) {
           justify="space-between"
           align="center"
           cursor="pointer"
-          onClick={() => setEnvOpen(!envOpen)}
+          onClick={() => onChange({ envOpen: !envOpen })}
         >
           <Text fontSize="sm" fontWeight="bold">
             Env Vars
@@ -1242,8 +1307,12 @@ function WfDrawerConfiguration({ workflowId }) {
           </Box>
         </Flex>
         {envOpen && (
-          <Box px={4} pb={3}>
-            <Text fontSize="xs" color="fg.muted" cursor="pointer">
+          <Box px={4} pb={3} opacity={0.6}>
+            <Separator mb={3} />
+            <Text fontSize="xs" color="fg.muted" mb={3} textDecoration="underline" cursor="pointer">
+              Edit definition →
+            </Text>
+            <Text fontSize="xs" color="fg.subtle">
               + Add new
             </Text>
           </Box>
@@ -1253,15 +1322,19 @@ function WfDrawerConfiguration({ workflowId }) {
   )
 }
 
-function WfDrawerProperties({ workflowId }) {
+function WfDrawerProperties({ workflowId, state, onChange }) {
   return (
-    <Stack gap={5}>
+    <Stack gap={5} opacity={0.6}>
+      <Text fontSize="xs" color="fg.muted" textDecoration="underline" cursor="pointer">
+        Edit definition →
+      </Text>
+
       {/* Name */}
       <Box>
         <Text fontSize="xs" fontWeight="bold" mb={1}>
           Name
         </Text>
-        <Input defaultValue={workflowId} size="sm" />
+        <Input size="sm" value={state.name} readOnly disabled />
       </Box>
 
       {/* Summary */}
@@ -1272,7 +1345,7 @@ function WfDrawerProperties({ workflowId }) {
             (optional)
           </Text>
         </Text>
-        <Textarea placeholder="" rows={3} size="sm" />
+        <Textarea rows={3} size="sm" value={state.summary} readOnly disabled />
       </Box>
 
       {/* Description */}
@@ -1283,7 +1356,7 @@ function WfDrawerProperties({ workflowId }) {
             (optional)
           </Text>
         </Text>
-        <Textarea placeholder="" rows={4} size="sm" />
+        <Textarea rows={4} size="sm" value={state.description} readOnly disabled />
       </Box>
     </Stack>
   )
