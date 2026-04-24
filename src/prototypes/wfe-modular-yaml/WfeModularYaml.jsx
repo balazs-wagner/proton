@@ -675,7 +675,8 @@ function WorkflowPanel({ workflows, selected, onSelect }) {
   const workflow = workflows[selected]
 
   return (
-    <Box flex="1" borderRightWidth="1px" borderColor="border" overflowY="auto" p={5}>
+    <Flex flex="1" borderRightWidth="1px" borderColor="border" overflowY="auto" p={5} justify="center">
+     <Box w="360px">
       {/* Workflow selector */}
       <Flex gap={2} mb={5}>
         <Box
@@ -813,7 +814,8 @@ function WorkflowPanel({ workflows, selected, onSelect }) {
         Steps are static for now. Next: add reordering, add/remove step,
         and step detail panel on click.
       </Annotate>
-    </Box>
+     </Box>
+    </Flex>
   )
 }
 
@@ -1042,7 +1044,7 @@ function PipelinePanel({ pipeline, pipelineName, onEditWorkflow, onOpenPropertie
 
 function WorkflowRightPanel({ workflowName, workflow, activeTab, onTabChange }) {
   return (
-    <Box w="380px" flexShrink={0} overflowY="auto" p={5}>
+    <Box w="720px" flexShrink={0} overflowY="auto" p={5} borderLeftWidth="1px" borderColor="border">
       <Heading size="sm" mb={4}>
         {workflowName}
       </Heading>
